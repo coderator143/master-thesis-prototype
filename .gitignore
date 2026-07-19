@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+.claude/
+
+# Video clips are large and will keep growing as more are added for
+# analysis -- not meant to live in git history.
+videos/

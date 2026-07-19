@@ -1,0 +1,4 @@
+video_id,question,variable_changed,original_value,new_value,base_score,base_level,new_score,new_level,delta
+VRU_9,What if the vehicle had been going slower?,speed,high,low,0.55,Moderate Risk,0.45,Moderate Risk,-0.1
+VRU_10,What if the weather had been clear?,weather,rainy,clear,0.42,Moderate Risk,0.32,Moderate Risk,-0.1
+VRU_14,What if visibility had been better?,visibility,low,high,0.84,High Risk,0.67,High Risk,-0.17

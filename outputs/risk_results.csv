@@ -1,0 +1,4 @@
+video_id,speed,visibility,proximity,weather,risk_score,risk_level
+VRU_9,high,medium,close,clear,0.55,Moderate Risk
+VRU_10,medium,high,medium,rainy,0.42,Moderate Risk
+VRU_14,medium,low,close,night,0.84,High Risk
