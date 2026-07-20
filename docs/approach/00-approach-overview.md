@@ -56,10 +56,10 @@ classifier + simulator combination actually proves.
 
 | Thesis chapter / concept | v1 (built) | New direction (planned) |
 |---|---|---|
-| Ch. 3 — Table 3.1 (scene variables) | `SPEED_SCORE`/`VISIBILITY_SCORE`/`PROXIMITY_SCORE`/`WEATHER_SCORE` dicts in `risk_model.py` | Phase 1's extracted variables + the dataset's own GT fields (see `03-dataset-source.md`) |
+| Ch. 3 — Table 3.1 (scene variables) | `SPEED_SCORE`/`VISIBILITY_SCORE`/`PROXIMITY_SCORE`/`WEATHER_SCORE` dicts in `risk_model.py` | **Done** — `data/scene_dataset.csv`, produced by `extract_features.py` + `ground_truth.py` (see `03-dataset-source.md`) |
 | Ch. 3 — Fig 3.1 (causal DAG) | `DEFAULT_WEIGHTS` in `risk_model.py`, reconciled from the figure's inconsistent numbers (see `01-risk-model-and-intervention-logic.md`) | Phase 5's DAG — a real multi-hop graph, not a flat weighted sum, and explicitly *not* used to compute the KPI |
-| Ch. 4 — Dataset Description | `videos/` (3 clips) + `data/scene_variables.csv` (manual guesses) | The full 1,000-video dataset with real GT — `03-dataset-source.md` |
-| Ch. 5.1 — Scene Variable Extraction | Manual annotation by watching each video | Phase 1 — CV extraction, GT lookup where available |
+| Ch. 4 — Dataset Description | `videos/` (3 clips) + `data/scene_variables.csv` (manual guesses) | The full 1,000-video dataset with real GT — `03-dataset-source.md`; 103 videos processed so far |
+| Ch. 5.1 — Scene Variable Extraction | Manual annotation by watching each video | **Done** — Phase 1: YOLO+ByteTrack+optical-flow CV extraction, GT lookup for weather/road type |
 | Ch. 5.2 — Causal Graph Construction | Baked into `calculate_risk()`'s fixed structure | Phase 5 — an explicit, separate graph structure |
 | Ch. 5.3 — Accident-Risk KPI Estimation | `risk_model.calculate_risk()` | Phase 3 (train) + Phase 4 (predict) |
 | Ch. 5.4 — Intervention-Based Simulation | `risk_model.simulate_intervention()` | Phase 6 (simulator) + Phase 7 (recommendation engine) |

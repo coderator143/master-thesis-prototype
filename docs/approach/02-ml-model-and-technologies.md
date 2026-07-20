@@ -1,14 +1,16 @@
 # ML model, approach, and technologies (new direction)
 
-> **This page describes the planned Phase 3+ direction, not what's built
-> yet.** For what v1 actually does today (no ML at all), see
+> **Phase 1 (CV extraction) is done — Phase 3+ (the trained classifier)
+> is still planned, not built.** Phase 1 added real new dependencies
+> (`opencv-python-headless`, `ultralytics`, `torch`) and produced
+> `data/scene_dataset.csv` from all 103 local videos — see
+> [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md) for results
+> and known limitations. Phase 3's classifier (this page's main subject)
+> hasn't been built yet and is still pending supervisor confirmation, since
+> it's the part that most directly departs from the already-submitted
+> draft's *"instead of training large multimodal models..."* framing. For
+> what v1 does today (no ML at all), see
 > [`01-risk-model-and-intervention-logic.md`](01-risk-model-and-intervention-logic.md).
-> Status of each phase lives in
-> [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md), including
-> the pending supervisor-confirmation note — this direction is a real
-> departure from what the already-submitted draft says the prototype would
-> do (*"instead of training large multimodal models..."*), and that's worth
-> keeping visible rather than writing over.
 
 ## ML model used: a trained classifier, and that's a deliberate change
 

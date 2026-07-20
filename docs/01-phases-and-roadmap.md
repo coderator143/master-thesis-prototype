@@ -9,8 +9,8 @@ actually done, since each one's output is the next one's input.
 | # | Phase | Status |
 |---|---|---|
 | — | Planning: architecture defined, dataset located, docs written | ✅ Done (2026-07-20) |
-| 1 | Visual feature extraction | ⬜ Not started |
-| 2 | Structured storage (`scene_dataset.csv` + `variable_metadata.csv`) | ⬜ Not started — schema designed, no file created |
+| 1 | Visual feature extraction | ✅ Done (2026-07-20) — 103/103 videos processed, 0 failures |
+| 2 | Structured storage (`scene_dataset.csv` + `variable_metadata.csv`) | 🟨 `scene_dataset.csv` exists (Phase 1's output); `variable_metadata.csv` not started |
 | 3 | Train a classifier | ⬜ Not started — blocked on Phase 1/2 output + supervisor confirmation |
 | 4 | Risk prediction | ⬜ Not started — depends on Phase 3 |
 | 5 | Causal DAG | ⬜ Not started — structure specified below, not yet built as code/data |
@@ -40,7 +40,68 @@ need to be reframed.
 **Goal:** turn each video into a row of concrete variables, using computer
 vision, not manual guessing.
 
-**Status:** not started.
+**Status: done (first pass).** `ground_truth.py` (GT loading/parsing) and
+`extract_features.py` (the CV pipeline — YOLOv8n detection + ByteTrack
+tracking via `ultralytics`, dense optical flow via OpenCV) were built and
+run against all 103 local videos (3 `test/` + 100 `train/`, the latter
+sampled via `scripts/sample_train_videos.py`). **All 103 processed
+successfully, 0 failures**, in well under a minute on this machine (M2,
+MPS backend). Output: `data/scene_dataset_raw.csv` (raw per-video values)
+and `data/scene_dataset.csv` (final bucketed schema, matching the table
+below minus `risk_label`, which is Phase 3's job).
+
+**How each variable actually got computed** (validated against 3 test
+videos + spot-checked debug frames in `outputs/debug_frames/` before the
+full run — boxes land on real people/vehicles, weather GT matches the
+visual scene, brightness ordering tracks reality):
+
+- `vehicle_speed`, `pedestrian_distance`, `visibility` — tertile-bucketed
+  (low/medium/high or far/medium/close) from uncalibrated CV proxies:
+  background optical-flow magnitude (objects masked out) for speed, max
+  normalized person-box height for distance, brightness+contrast (combined
+  as whichever is worse) for visibility.
+- `num_pedestrians`, `traffic_density` — kept as raw numbers (distinct
+  track IDs, mean per-frame vehicle count), not bucketed, per the
+  reasoning in the implementation plan.
+- `weather`, `road_type` — pulled directly from the dataset's real
+  ground-truth annotations (`ground_truth.py`), not derived by CV.
+- `obstacle` — a lightweight near-static-vehicle heuristic (lower
+  priority, as planned).
+
+**Known limitations found while validating real output** (worth stating
+honestly in the report, not silently smoothing over):
+
+- **`obstacle` over-triggers** — 84/103 videos got `"yes"`, which is too
+  high to be a discriminating signal as currently thresholded. Needs
+  revisiting (e.g. a stricter displacement threshold, or requiring more
+  than 2 detections) before it's trustworthy — treat it as a stub for now,
+  same as originally planned as acceptable for a first pass.
+- **`num_pedestrians` can be noisy in crowded scenes** — spot-checked the
+  highest outlier (32, in a real crowded pedestrian-crossing scene,
+  confirmed via debug frame) and found real track-ID churn under the
+  sparse 2fps sampling (the same handful of people getting reassigned new
+  IDs across frames), which likely inflates the count somewhat above the
+  true number. The true value is probably somewhere between the largest
+  single-frame count and the distinct-ID count; this implementation uses
+  the max of the two, which is a documented, not hidden, approximation.
+- **`visibility`'s "low" bucket is oversized on purpose, not a bug** — it's
+  the `min()` of two independent tertile rankings (brightness, contrast),
+  which mathematically skews toward "low" (worked out to 57/33/13 for
+  low/medium/high across the 103 videos, close to the theoretical 5/9,
+  3/9, 1/9 split for two independent tertiles combined this way) — because
+  a video only needs *either* poor brightness *or* poor contrast to be
+  flagged low-visibility. Working as designed, but worth explaining in the
+  report rather than presenting the class balance as if it were neutral.
+- **Weather/road-type class balance is skewed** in this 103-video sample
+  (76/103 "sunny day", 65/103 "arterials" road type) — a real property of
+  which videos got randomly sampled, worth keeping in mind for Phase 3
+  (a classifier trained on this will see much more "sunny day" than
+  anything else).
+
+100 training videos (25 each from CAP_DATA, DADA_2000, DoTA, MANUAL_DATA,
+chosen with a fixed random seed, excluding the 3 already in `test/`) were
+copied into `videos/train/<source>/` via `scripts/sample_train_videos.py`,
+with a manifest at `data/train_video_manifest.csv`.
 
 **What's already available and doesn't need building:** the real dataset
 (see [`approach/03-dataset-source.md`](approach/03-dataset-source.md)) has

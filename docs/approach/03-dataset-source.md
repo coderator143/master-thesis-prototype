@@ -37,7 +37,7 @@ Each of the 4 sources has the same two annotation files, same schema.
 
 ### VQA annotation JSON — real ground truth, 6 categories per video
 
-Keyed by video path (e.g. `./VRU_videos/MANUAL_DATA/VRU_9.mp4`). Example
+Keyed by video path (e.g. `./VRU_videos/CAP_DATA/VRU_9.mp4`). Example
 entry:
 
 ```json
@@ -83,12 +83,25 @@ Phase 1 is for. See the roadmap for the specific approach per variable.
 
 ## Our 3 existing videos are already in here with real GT
 
-`VRU_9`, `VRU_10`, and `VRU_14` (currently in `videos/test/` with
-placeholder guesses in `data/scene_variables.csv`) are literally
-`MANUAL_DATA` entries in this dataset, with real GT annotations and real
-dense captions already available. When Phase 1/2 work begins, these three
-should be re-populated from real data rather than kept as hand-guessed
-placeholders — no reason to guess when the answer is sitting right there.
+`VRU_9`, `VRU_10`, and `VRU_14` (in `videos/test/CAP_DATA/`, with
+placeholder guesses in `data/scene_variables.csv`) are `CAP_DATA` entries in
+this dataset, with real GT annotations and real dense captions already
+available. When Phase 1/2 work begins, these three should be re-populated
+from real data rather than kept as hand-guessed placeholders — no reason to
+guess when the answer is sitting right there.
+
+**Important correction, and why the folder layout has a `source`
+subfolder:** video IDs are only unique *within* a source, not across the
+whole dataset — there's a different `VRU_9.mp4`, `VRU_10.mp4`, and
+`VRU_14.mp4` in each of CAP_DATA, DADA_2000, DoTA, and MANUAL_DATA (4
+different files per name, confirmed by differing file sizes). An earlier
+version of this doc incorrectly said our 3 videos were from MANUAL_DATA —
+they're actually CAP_DATA, confirmed by matching file sizes byte-for-byte.
+**Always keep `source` alongside `video_id` when identifying a video** —
+`video_id` alone is ambiguous. This is why `videos/test/` and
+`videos/train/` are organized as `{split}/{source}/{video_id}.mp4`, and why
+`data/scene_variables.csv` and the planned `data/scene_dataset.csv` both
+have a `source` column.
 
 ## `Model_Response/` and `Models/` — not ground truth, worth knowing about
 

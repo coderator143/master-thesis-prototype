@@ -47,7 +47,7 @@ reminder.
 
 To make the results real:
 
-1. Watch each video in `videos/test/` (`VRU_9.mp4`, `VRU_10.mp4`,
+1. Watch each video in `videos/test/CAP_DATA/` (`VRU_9.mp4`, `VRU_10.mp4`,
    `VRU_14.mp4`).
 2. For each one, decide honestly:
    - Was the vehicle going `low`, `medium`, or `high` speed?

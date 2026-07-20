@@ -7,3 +7,8 @@ __pycache__/
 # Video clips are large and will keep growing as more are added for
 # analysis -- not meant to live in git history.
 videos/
+
+# Downloaded model weights (auto-fetched by ultralytics on first run) and
+# batch-run logs -- regenerable, not source.
+*.pt
+logs/
