@@ -3,10 +3,18 @@
 **VRU (Vulnerable Road User)** — a pedestrian, cyclist, or anyone on the road
 who isn't protected by a vehicle's frame.
 
-**VRU-Accident dataset** — a public research collection of ~1,000 real
+**VRU-Accident dataset** — a public research collection of 1,000 real
 dashcam accident videos involving VRUs, with extra written descriptions
 attached (what caused the accident, weather, road type, how it could have
-been prevented, etc). This prototype uses just 3 of those videos.
+been prevented, etc). A full local copy exists outside this project folder
+— see [`../approach/03-dataset-source.md`](../approach/03-dataset-source.md).
+v1 used just 3 of those videos with hand-guessed values; the new direction
+targets ~50–100 videos using the dataset's real annotations.
+
+**Ground truth (GT)** — the correct, verified answer for something, as
+opposed to a guess or a model's prediction. The VRU-Accident dataset's
+annotations are ground truth (human-verified); a classifier's predictions
+are not.
 
 **Scene variable** — one simple, human-readable fact about a video (e.g.
 "speed was high"), used as an input to the risk model.
@@ -50,24 +58,61 @@ opaque even to its own designers. The main selling point of this project.
 
 **ML model (as opposed to a rule-based model)** — a system that *learns*
 its behavior from examples (training data) rather than having it written
-down by a person. This prototype has no ML model in it — the risk formula
-is entirely hand-written. See
+down by a person. v1 has no ML model in it — the risk formula is entirely
+hand-written. The new direction (Phase 3) does train one. See
 [`../approach/02-ml-model-and-technologies.md`](../approach/02-ml-model-and-technologies.md).
 
 **Object detection (YOLO, Faster R-CNN, etc.)** — an ML technique for
 finding and labeling things in an image (e.g. "there's a car here, a
-pedestrian there"). Mentioned in the thesis's Related Works and Future Work
-as a plausible way to automate variable extraction later — not used in this
-prototype.
+pedestrian there"). Not used in v1; used in the new direction's Phase 1 to
+extract variables like number of pedestrians and traffic density.
+
+**Object tracking (ByteTrack, DeepSORT)** — following the *same* detected
+object across multiple video frames (as opposed to detecting it fresh in
+each frame with no memory of it being the same car/person as before).
+Needed to estimate motion/speed, since that requires knowing how far the
+*same* object moved between frames.
+
+**Optical flow** — a technique for estimating motion between two video
+frames at the pixel level (which direction and how fast things in the image
+are moving), without needing to first detect specific objects. Used in
+Phase 1 as a supplementary motion signal.
+
+**Random Forest / Gradient Boosting (XGBoost, LightGBM)** — types of ML
+models that make predictions by combining many simple decision trees. Good
+fit for this project's Phase 3 classifier because they work well on small
+tabular datasets, need no GPU, and directly expose feature importance.
+
+**Feature importance** — a score a trained model (like a Random Forest) can
+report per input variable, showing how much that variable contributed to
+its predictions. **Not the same as a causal effect** — see
+[`00-key-concepts.md`](00-key-concepts.md#feature-importance-is-not-a-causal-weight-read-this-before-phase-3)
+for why that distinction matters here specifically.
+
+**Proxy label / weak supervision** — using an indirect, imperfect signal as
+a stand-in training target when the real thing you want to predict isn't
+directly available. This project's planned severity label (Phase 3),
+mined from keyword patterns in dense captions rather than a real
+per-video risk rating, is an example.
+
+**Controllable variable** — a scene variable a driver/system could actually
+change (e.g. speed), as opposed to one nobody can control (e.g. weather).
+Tracked per-variable in `variable_metadata.csv`, and used by the
+recommendation engine (Phase 7) so it never suggests something impossible
+like "make the weather sunny."
+
+**Recommendation engine** — the Phase 7 component that searches over
+controllable variables to find changes that would have lowered a scene's
+predicted risk, then reports the best one(s) in plain language.
 
 **Vision-language model / multimodal model** — an ML model that combines
 image or video understanding with natural-language text, e.g. answering
 questions about a video or generating captions for it. The VRU-Accident
 dataset's own annotations were produced using this class of model; this
-prototype does not run one itself.
+project uses those annotations directly rather than running one itself.
 
-**Bayesian network** — a more statistically rigorous cousin of the simple
-causal graph used here, where the strength of each connection is learned
-from data with proper uncertainty, instead of hand-picked. Listed in the
-thesis's Future Work as a natural next step beyond this prototype's fixed
-weighted-sum formula.
+**Bayesian network** — a more statistically rigorous cousin of a causal
+graph, where the strength of each connection is learned from data with
+proper uncertainty, instead of hand-picked or derived from feature
+importance. Listed in the thesis's Future Work as a further step beyond
+even the new direction's DAG.

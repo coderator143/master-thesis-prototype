@@ -1,4 +1,4 @@
-video_id,filename,speed,visibility,proximity,weather,notes
-VRU_9,VRU_9.mp4,high,medium,close,clear,PLACEHOLDER - review after watching video
-VRU_10,VRU_10.mp4,medium,high,medium,rainy,PLACEHOLDER - review after watching video
-VRU_14,VRU_14.mp4,medium,low,close,night,PLACEHOLDER - review after watching video
+video_id,filename,split,speed,visibility,proximity,weather,notes
+VRU_9,test/VRU_9.mp4,test,high,medium,close,clear,PLACEHOLDER - review after watching video
+VRU_10,test/VRU_10.mp4,test,medium,high,medium,rainy,PLACEHOLDER - review after watching video
+VRU_14,test/VRU_14.mp4,test,medium,low,close,night,PLACEHOLDER - review after watching video

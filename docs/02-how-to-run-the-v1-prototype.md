@@ -1,4 +1,12 @@
-# How to run the prototype
+# How to run the v1 prototype
+
+> **This is the original, already-working version** — a hand-built weighted
+> formula, no ML. It's being superseded by a bigger 7-phase architecture
+> (CV extraction → trained classifier → causal DAG → simulator →
+> recommendation engine) — see
+> [`01-phases-and-roadmap.md`](01-phases-and-roadmap.md) for the live plan
+> and status. This page stays accurate for what's *already built*; it's not
+> where new work happens.
 
 ## One-time setup
 
@@ -39,7 +47,8 @@ reminder.
 
 To make the results real:
 
-1. Watch each video in `videos/` (`VRU_9.mp4`, `VRU_10.mp4`, `VRU_14.mp4`).
+1. Watch each video in `videos/test/` (`VRU_9.mp4`, `VRU_10.mp4`,
+   `VRU_14.mp4`).
 2. For each one, decide honestly:
    - Was the vehicle going `low`, `medium`, or `high` speed?
    - Was visibility `high`, `medium`, or `low`?
@@ -48,6 +57,29 @@ To make the results real:
 3. Edit `data/scene_variables.csv` with a text editor or spreadsheet app,
    update the values, and clear out the `PLACEHOLDER` note.
 4. Re-run `python prototype.py` — the results will update automatically.
+
+## Adding more videos to `videos/train/`
+
+`videos/` has two subfolders: `test/` holds the 3 videos the prototype was
+originally built and demoed against (already wired up in
+`data/scene_variables.csv`), and `train/` is where additional videos go as
+the dataset grows. To add one:
+
+1. Drop the video file into `videos/train/`.
+2. Add a row for it to `data/scene_variables.csv` with `split` set to
+   `train` and `filename` set to `train/<your-file>.mp4`.
+3. Annotate its speed/visibility/proximity/weather the same way as above.
+
+As of now, `prototype.py` doesn't treat `train` and `test` rows any
+differently — it scores every row in the CSV the same way, because nothing
+in `risk_model.py` is actually learned from data yet (see
+[`approach/02-ml-model-and-technologies.md`](approach/02-ml-model-and-technologies.md),
+which is exactly what's now planned in
+[`01-phases-and-roadmap.md`](01-phases-and-roadmap.md)).
+The split is being kept ready ahead of time for when that changes — e.g. if
+weights get calibrated/learned from data instead of hand-set, `train/`
+videos would be what that calibration runs against, and `test/` would stay
+held out to check the result still makes sense.
 
 ## Where to look at results
 

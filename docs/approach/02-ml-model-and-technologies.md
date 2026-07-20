@@ -1,91 +1,122 @@
-# ML model, approach, and technologies used
+# ML model, approach, and technologies (new direction)
 
-## ML model used: none, and that's intentional
+> **This page describes the planned Phase 3+ direction, not what's built
+> yet.** For what v1 actually does today (no ML at all), see
+> [`01-risk-model-and-intervention-logic.md`](01-risk-model-and-intervention-logic.md).
+> Status of each phase lives in
+> [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md), including
+> the pending supervisor-confirmation note — this direction is a real
+> departure from what the already-submitted draft says the prototype would
+> do (*"instead of training large multimodal models..."*), and that's worth
+> keeping visible rather than writing over.
 
-It's worth saying plainly: **this prototype does not train or run any
-machine learning model.** There's no neural network, no object detector, no
-vision-language model anywhere in `risk_model.py` or `prototype.py`. The
-"model" in "risk model" means a simple mathematical formula (a weighted
-sum), not a trained ML model.
+## ML model used: a trained classifier, and that's a deliberate change
 
-This isn't a shortcut or a missing piece — it's exactly what the thesis
-proposes. Straight from the abstract: *"Instead of training large
-multimodal models, the proposed system focuses on manually defining
-interpretable variables."* The scene variables (speed, visibility,
-proximity, weather) are assigned by a person watching the video, not
-predicted by a model. The thesis's whole argument is that you can get
-useful, explainable "what if" reasoning without an ML model in the loop at
-all — see
-[`../learning/00-key-concepts.md`](../learning/00-key-concepts.md) for why
-that trade-off is the actual point of the thesis, not a limitation of this
-implementation.
+Unlike v1, the new direction does train a model: a **Random Forest** (or
+Gradient Boosting — XGBoost/LightGBM) classifier, trained on the variables
+extracted in Phase 1, predicting accident risk. This is a genuine ML model
+with learned parameters, not a formula — see Phase 3/4 in
+[`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md) for the full
+mechanics (including the unresolved question of what the training target
+even is, since VRU-Accident videos don't come with a risk label — resolved
+there via a dense-caption-derived severity proxy).
 
-### If automated variable extraction were added later (not implemented here)
+**Why Random Forest / Gradient Boosting specifically**, over other options:
 
-The thesis's own Related Works chapter and Future Work section point at
-what *would* be used if the manual-annotation step were automated — this is
-listed here for reference only, none of it exists in this codebase:
+- Both work well on small-to-medium tabular data (dozens to low hundreds of
+  rows) — appropriate for the ~50–100 video first pass, unlike deep
+  learning approaches that need much more data.
+- Both expose **feature importance** directly, without extra work — this is
+  the thing that replaces `DEFAULT_WEIGHTS` from v1.
+- Neither needs a GPU — realistic to train and iterate on a laptop.
+- Both handle a mix of categorical and continuous variables (weather,
+  speed, distance, etc.) without much preprocessing.
 
-- **Object detection / tracking models** (YOLO, Faster R-CNN,
-  transformer-based vision architectures) — could estimate vehicle speed
-  and pedestrian proximity directly from video frames instead of a person
-  eyeballing them.
-- **Vision-language / multimodal models** — the original VRU-Accident
-  benchmark paper itself uses this class of model for its video-question-
-  answering and dense-captioning annotations. This prototype consumes the
-  *idea* of that structured information (weather, visibility, etc.) but not
-  the model that produced it — those variables are typed in by hand here.
-- **Brightness/contrast analysis** — a plausible lightweight (non-ML) way to
-  estimate the `visibility` variable automatically, mentioned here because
-  it's a much smaller step than full object detection and could be a
-  realistic first automation target.
+## Where do the "weights" come from now? Two different meanings, don't conflate them
+
+This is worth being precise about, since it's an easy thing to get wrong in
+the final report:
+
+1. **Model parameters** — for a linear model these would be literal
+   weights; Random Forest doesn't have this in the same sense, it learns a
+   collection of decision trees instead.
+2. **Feature importance** — a score per input variable (e.g. speed 0.34,
+   distance 0.27, visibility 0.16, weather 0.08...) measuring how much that
+   variable contributed to the model's predictions across the training
+   data. **This is what replaces the manually-set weights.** It's stronger
+   than v1's approach in one specific sense — it's derived from data rather
+   than guessed — but it answers a different question than v1's weights
+   did, and that difference matters (next section).
+
+## The caveat that has to be in the report: feature importance is not a causal weight
+
+Feature importance says "this variable helped the model predict risk in
+this training data." It does **not** say "changing this variable causes
+risk to change by this much," which is what v1's weights were trying to
+approximate (badly, but at least honestly framed as a guess) and what the
+thesis's own causal framing is ultimately about. A variable can have high
+feature importance because of confounding — e.g. if bad weather in the
+training data happens to correlate with a road type that's independently
+riskier, the model can't tell those apart, but a human reading a feature-
+importance bar chart might assume it can.
+
+This is exactly the limitation the thesis's Related Works chapter raises
+about other ML-based accident systems — training a classifier and treating
+its output as causal doesn't avoid that critique just because the
+classifier here is simpler (a Random Forest instead of a deep network). The
+honest framing for the report: **feature importance is used as an
+interpretable, data-driven proxy for variable relevance — not as validated
+causal effect sizes.** The DAG (Phase 5) is what carries the actual causal
+claims, and it stays separate and manually authored for exactly this
+reason. See [`../learning/00-key-concepts.md`](../learning/00-key-concepts.md)
+for more on the distinction.
 
 ## The approach used
 
-In one sentence: **rule-based interpretable scoring, not statistical or
-learned causal discovery.** Four categorical variables are converted to
-numbers, combined with fixed, human-chosen weights into a single risk
-score, and "interventions" are simulated by changing one variable and
-recomputing the score. The full mechanics — the exact formula, the weights,
-a worked example, and how interventions work — are in
-[`01-risk-model-and-intervention-logic.md`](01-risk-model-and-intervention-logic.md).
+In one sentence: **a trained correlational classifier for the risk
+prediction/KPI, plus a separate hand-built causal DAG for the causal
+claims and the recommendation logic** — deliberately not one system trying
+to do both jobs. The simulator (Phase 6) re-runs the classifier on edited
+inputs; the recommendation engine (Phase 7) uses `variable_metadata.csv`'s
+controllability flags plus the classifier to search for realistic
+interventions, and can lean on the DAG's structure (once built) to avoid
+searching nonsensically (e.g. trying to "fix" a variable with no plausible
+causal path to risk).
 
-This is deliberately the simplest possible version of "causal-style"
-reasoning: a real causal model would *discover* which variables matter and
-by how much from data; this prototype has a person *assert* it up front.
-The thesis is explicit that automatic causal discovery is out of scope.
+## Technologies needed (new dependencies vs. v1)
 
-## Technologies used
+v1's stack was deliberately minimal (Python, pandas, matplotlib). The new
+direction genuinely needs more, since it's doing real CV and ML work:
 
-The stack is intentionally minimal — a thesis prototype demonstrating a
-concept doesn't need a large dependency footprint, and a smaller stack is
-easier to explain in a viva:
+| Technology | Used for | New vs. v1? |
+|---|---|---|
+| Python 3.13 | Still the only language | Same |
+| pandas | Still the tabular data layer (`scene_dataset.csv`, `variable_metadata.csv`) | Same |
+| matplotlib | Still charts (risk distributions, feature-importance bar charts) | Same |
+| `ultralytics` (YOLO) | Object detection — vehicles, pedestrians, cyclists (Phase 1) | New |
+| A tracker (ByteTrack or DeepSORT) | Associating detections across frames to get motion/speed proxies (Phase 1) | New |
+| OpenCV | Frame extraction, optical flow, brightness/visibility analysis (Phase 1) | New |
+| scikit-learn (Random Forest) and/or `xgboost` | Training the classifier and extracting feature importances (Phase 3) | New |
+| A small graph structure (plain dicts, or `networkx` if the traversal logic in Phase 7 gets non-trivial) | Representing the causal DAG (Phase 5) | New |
 
-| Technology | Used for |
-|---|---|
-| Python 3.13 | The only language used, for everything |
-| pandas | Reading `data/scene_variables.csv`, building result tables, writing `outputs/*.csv` |
-| matplotlib | Generating the static PNG bar charts saved to `outputs/` |
-| CSV files | The entire data storage layer — no database, since the dataset is 3 rows |
-| `venv` | Isolating the two dependencies above from the system Python install |
-| git | Version-controlling the code and docs (not the video files — see the root `.gitignore`) |
-
-Notably absent, on purpose: any ML/CV framework (PyTorch, TensorFlow,
-OpenCV), any web framework, and any database — none of them are needed for
-what this prototype actually does, and adding them would be complexity
-without a corresponding requirement. If the "automated extraction" future
-work from the previous section is ever pursued, that's the point at which
-OpenCV or a detection model would become a real dependency, not before.
+Deliberately still not planned: any deep learning training beyond the
+classifier itself (no fine-tuning a vision-language model — the thesis's
+own scope explicitly excludes that), no web framework unless Phase 6's
+simulator ends up needing a real UI rather than a script/notebook, no
+database (CSV is still enough at this scale).
 
 ## How it all ties together with the thesis
 
-The thesis's central claim is that **interpretable, intervention-based
-reasoning is a valuable alternative to black-box ML prediction** for
-understanding accident risk. Every technology choice above supports that
-claim directly: no ML model to keep opaque, a formula simple enough to
-compute by hand (see the worked example in
-[`01-risk-model-and-intervention-logic.md`](01-risk-model-and-intervention-logic.md)),
-and outputs (CSVs, plain bar charts) chosen for how easy they are to read
-and explain rather than for visual sophistication. See
+The thesis's central claim was **interpretable, intervention-based
+reasoning as an alternative to black-box ML prediction.** The new direction
+doesn't abandon that claim, but it does complicate it: part of the system
+(the classifier) *is* now closer to the black-box category the thesis
+originally critiqued, and the interpretability claim now rests specifically
+on keeping the DAG separate, hand-built, and clearly labeled as the source
+of any causal (not just predictive) claims — plus being explicit in the
+report about the feature-importance-vs-causal-weight distinction above.
+That reframing is exactly why this direction needs to be discussed with the
+supervisor rather than treated as a pure implementation upgrade — it changes
+the thesis's argument, not just its code. See
 [`00-approach-overview.md`](00-approach-overview.md) for the full
-chapter-by-chapter mapping between the thesis text and this codebase.
+chapter-by-chapter mapping.

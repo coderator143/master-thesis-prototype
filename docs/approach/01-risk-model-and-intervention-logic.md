@@ -1,4 +1,12 @@
-# How the risk model works
+# How the risk model works (v1 — legacy baseline)
+
+> **v1, superseded by the phased plan.** This describes the original
+> hand-built formula (`risk_model.py`), still working, still the baseline
+> the new direction is compared against. It is *not* where the causal DAG
+> or the trained classifier described in
+> [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md) live — see
+> [`02-ml-model-and-technologies.md`](02-ml-model-and-technologies.md) for
+> those. Kept here, unmodified, as the documented baseline.
 
 Part of the [approach used in this prototype](00-approach-overview.md) —
 this page is the detailed mechanics; that page is the high-level "why."

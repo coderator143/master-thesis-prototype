@@ -3,7 +3,17 @@
 This is the prototype for the thesis *"A Prototype System for Simulating the
 Effect of Visual Scene Variables on Accident-Risk KPIs using Simple Causal
 Models"* (supervisor: Jakob Suchan). This page explains the whole idea in
-plain language — no causal-inference jargon, no academic phrasing.
+plain language — no jargon, no academic phrasing.
+
+> **Status note (2026-07-20):** the project is mid-pivot. What's described
+> below as "the plan" is a substantially bigger architecture than the one in
+> the already-submitted Step-1 draft, and **has not yet been confirmed with
+> the supervisor.** The old, already-working version (a hand-built weighted
+> formula, no ML) still exists and still runs — see
+> [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md).
+> Treat this page as "where we're headed," not "what's done." The
+> phase-by-phase status lives in
+> [`01-phases-and-roadmap.md`](01-phases-and-roadmap.md).
 
 ## The problem, in one paragraph
 
@@ -15,85 +25,118 @@ car down have helped? Would better lighting have helped? Most existing
 systems are trained to *detect* danger, not to *explain what would change
 it.* That's the gap this thesis is about.
 
-## The idea
+## The plan, in one paragraph
 
-Instead of training a big machine-learning model, this project does
-something much simpler and easier to explain:
+Watch real accident videos and use computer vision to pull out concrete
+scene facts (how fast the vehicle was going, how far the pedestrian was,
+how many pedestrians, the weather, how crowded the traffic was, the road
+type, whether there was an obstacle). Store those facts in a table. Train a
+machine-learning classifier on that table to predict accident risk — this
+is a genuine, trained ML model, not a hand-picked formula, and it's the KPI.
+Separately, hand-draw a causal diagram (a DAG) encoding domain knowledge
+about which variables plausibly cause which — this stays manually authored,
+not learned, because the classifier only knows correlations, not causes. A
+simulator lets you edit a scene's variables and instantly re-run the trained
+classifier to see the risk change. A recommendation engine then searches
+over the variables that are actually *controllable* (you can't recommend
+"make the weather sunny") to find realistic interventions that would have
+lowered the risk.
 
-1. **Look at a few real accident videos** (from a public research dataset
-   called VRU-Accident, which is full of real dashcam footage of accidents
-   involving pedestrians and cyclists — "VRU" = Vulnerable Road User).
-2. **Describe each video with four simple labels**, chosen by a person
-   watching the video:
-   - How fast was the vehicle going? (low / medium / high)
-   - How clear was visibility? (high / medium / low)
-   - How close was the vehicle to the pedestrian? (far / medium / close)
-   - What was the weather like? (clear / rainy / night)
-3. **Turn those labels into numbers** and combine them with a simple
-   formula to get a single "risk score" between 0 and 1 — think of it like a
-   traffic-light rating: green (low risk), yellow (moderate), red (high).
-4. **Ask "what if?"** — change one label (e.g. "what if speed had been low
-   instead of high?") and recalculate the score. If the score drops, that
-   variable mattered. This is called an "intervention," and it's the core
-   trick of the whole project.
+## Why this is a genuine pivot from the submitted draft
 
-## Why this counts as "causal," even though it's simple
+The Step-1 draft explicitly says: *"Instead of training large multimodal
+models, the proposed system focuses on manually defining interpretable
+variables."* The new plan does train a model (a Random Forest or similar).
+That's not a small tweak — it changes what kind of thesis this is, from
+"demonstrate causal-style reasoning without any ML" to "combine a trained
+ML predictor with a separate hand-built causal structure." Both are
+legitimate research directions, but they're different claims, and the
+second one needs the supervisor's sign-off since it goes beyond what was
+already submitted and accepted. See
+[`01-phases-and-roadmap.md`](01-phases-and-roadmap.md) for the full
+reasoning and what's pending.
 
-A real causal model, done properly, is discovered from lots of data using
-statistics. This project doesn't do that — it's explicitly **not** trying to
-discover which variables actually cause accidents. Instead, a person
-*manually decides* (based on common sense and domain knowledge) that speed,
-visibility, proximity, and weather probably matter, draws that relationship
-as a simple diagram (a "causal graph"), and then simulates "what if I change
-this one thing" on top of it. It's a lightweight, interpretable stand-in for
-a full causal model — good enough to demonstrate the *concept* of
-intervention-based reasoning without the complexity of proper causal
-discovery or training a large model. The thesis is upfront about this
-limitation — it's a deliberate scope decision, not an oversight.
+## The seven phases, at a glance
 
-## The dataset
+1. **Visual feature extraction** — CV models (YOLO, a tracker, optical
+   flow, a segmentation model, brightness analysis) pull structured
+   variables out of each video.
+2. **Structured storage** — every video's variables go into one CSV;
+   whether a variable is controllable (for later use) lives in a *separate*
+   `variable_metadata.csv`, since controllability doesn't change per video.
+3. **Train a classifier** — a Random Forest/XGBoost model learns to predict
+   risk from the extracted variables. Its *feature importances* become the
+   data-driven equivalent of the "weights" the old formula hand-picked.
+4. **Risk prediction** — the trained classifier's output (a risk
+   probability/class) *is* the accident-risk KPI.
+5. **Causal DAG** — a separate, hand-drawn diagram of assumed cause →
+   effect relationships. Not learned. Used for reasoning about structure,
+   not for computing the score.
+6. **Interactive simulator** — edit a scene's variables, re-run the same
+   trained classifier, see the new score. No new model involved.
+7. **Recommendation engine** — searches over controllable variables only
+   (per `variable_metadata.csv`) to suggest realistic interventions that
+   would lower the predicted risk.
 
-The full VRU-Accident benchmark has around 1,000 real dashcam accident
-videos with rich annotations (captions, causes, weather/lighting info,
-prevention suggestions). **This prototype only uses 3 of those videos**
-(`VRU_9`, `VRU_10`, `VRU_14`) to keep things manageable for a first working
-version — see `data/scene_variables.csv` for how each one has been
-described. Expanding to more videos is listed as a next step in
-[`02-next-steps-and-future-work.md`](02-next-steps-and-future-work.md).
+Details, status, and the open questions for each phase are in
+[`01-phases-and-roadmap.md`](01-phases-and-roadmap.md).
 
-## What's explicitly out of scope
+## An important methodological caveat, worth understanding early
 
-The thesis is deliberately narrow, on purpose:
+The classifier (Phases 3–4) and the causal DAG (Phase 5) answer different
+questions, and it matters that they don't get blurred together:
 
-- No automatic causal discovery (the causal graph is drawn by hand).
-- No training of deep learning / large multimodal models.
-- No fully automated video analysis — variables are annotated by a person
-  watching the video, not extracted automatically.
-- No claim that the risk score is scientifically precise — it's a tool for
-  *comparing* scenarios (before vs. after an intervention), not a certified
-  accident-prediction system.
+- The classifier learns **correlations** in the training data. Its feature
+  importances say "this variable was useful for predicting risk in this
+  dataset" — not "this variable causes risk." Re-running it with an edited
+  input (Phase 6) tells you what the model *would have predicted*, which is
+  only a trustworthy stand-in for "what would actually have happened" if
+  the correlations it learned happen to reflect real causal mechanisms —
+  which isn't guaranteed, and is exactly the limitation the thesis's own
+  Related Works chapter raises about black-box ML systems.
+- The DAG is the actual causal claim — and it's manually authored, not
+  learned, same as before.
+
+This is worth stating plainly in the final report rather than glossing
+over: the simulator is doing correlational re-prediction, dressed in a
+causal-sounding interface. That's a reasonable, common simplification for a
+prototype (real causal ML — e.g. structural causal models fit to do-
+calculus — is a much bigger undertaking), but it should be named as a
+limitation, not implied to be more rigorous than it is. See
+[`learning/00-key-concepts.md`](learning/00-key-concepts.md) for more on
+this distinction.
+
+## The dataset — bigger than we thought
+
+A full local copy of the actual VRU-Accident benchmark repository exists at
+`/Users/warshaw65/Desktop/VRU-Accident/` (outside this project folder) —
+**1,000 real videos** with real ground-truth annotations (weather & light,
+location, road type, accident type, accident reason, prevention method) and
+a rich text description per video. See
+[`approach/03-dataset-source.md`](approach/03-dataset-source.md) for the
+full details and how this project will use it — in short: real GT is used
+directly for the variables it already covers, computer vision is only
+needed for the variables it doesn't (speed, pedestrian distance/count,
+traffic density), and the first end-to-end pass targets ~50–100 videos
+before scaling up.
 
 ## How the pieces of this repo fit together
 
 | File / folder | What it is |
 |---|---|
-| `risk_model.py` | The actual "causal model" — the formula, the weights, the intervention logic. No file reading/writing, just the math. |
-| `prototype.py` | Runs everything end to end: reads the annotated videos, computes risk scores, runs example interventions, saves results and charts. |
-| `data/scene_variables.csv` | The manually annotated variables for each video (this is the "ground truth" input). |
-| `outputs/` | Everything `prototype.py` generates: result tables and charts. |
-| `videos/` | The 3 real accident video clips being analyzed. |
-| `docs/` | You are here — plain-language explanations, reusable for the final written thesis report. |
+| `risk_model.py`, `prototype.py`, `data/scene_variables.csv` | **v1** — the original hand-built weighted formula. Still works, kept as the baseline this thesis started from. See [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md). |
+| `outputs/` | v1's generated result tables and charts. |
+| `videos/test/`, `videos/train/` | The video clips available locally (3 so far in `test/`; more get added to `train/`). |
+| `docs/` | You are here. |
 
-`docs/` itself has two subfolders:
+`docs/` has two subfolders:
 
 - [`learning/`](learning/00-key-concepts.md) — background concepts (causal
-  reasoning, the dataset, related work) for actually understanding *why*
-  the project is built this way.
-- [`approach/`](approach/00-approach-overview.md) — what was actually
-  built: the risk model mechanics, what (if any) ML is used, the tech
-  stack, and how it all maps back to specific thesis chapters.
+  reasoning vs. correlation, the dataset, related work) for understanding
+  *why* the project is built this way.
+- [`approach/`](approach/00-approach-overview.md) — what's actually built
+  (and what's planned): the model(s), the tech stack, the dataset source,
+  and how it all maps back to the thesis.
 
-See [`approach/01-risk-model-and-intervention-logic.md`](approach/01-risk-model-and-intervention-logic.md)
-for the actual formula and numbers, and
-[`01-how-to-run-the-prototype.md`](01-how-to-run-the-prototype.md) to run it
-yourself.
+Start with [`01-phases-and-roadmap.md`](01-phases-and-roadmap.md) for the
+current plan and status.

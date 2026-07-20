@@ -5,6 +5,14 @@ just looking up a term (that's what
 [`02-glossary.md`](02-glossary.md) is for). Read this if you want to be
 able to explain, in your own words, why the thesis is built the way it is.
 
+> The first three sections below describe the reasoning behind **v1** (the
+> hand-built formula). The project is now moving to a bigger architecture
+> that adds a trained classifier alongside a separate causal DAG — see
+> **"Feature importance is not a causal weight"** further down, which is the
+> single most important concept to get right for that new direction, and
+> [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md) for the full
+> plan.
+
 ## Correlation vs. causation, with a concrete example
 
 Say a dataset shows: accidents happen more often on rainy days. A
@@ -51,6 +59,40 @@ input variables themselves — they're treated as independent inputs, which
 is a simplification (in reality, weather obviously affects visibility too)
 made explicitly to keep the model easy to compute and explain.
 
+## Feature importance is not a causal weight (read this before Phase 3)
+
+This is the single easiest concept to get wrong in the new direction, so
+it's worth its own section. When you train a classifier (Random
+Forest/XGBoost) and ask it "which variables mattered most," it gives you
+**feature importance** — a number per variable saying how much it helped
+the model make correct predictions on the training data.
+
+That sounds like the same thing as "how much does this variable cause
+risk," but it isn't. Concrete example: suppose in the training videos,
+`rainy weather` and `low visibility` almost always occur together (which
+makes sense — rain often reduces visibility). A classifier might assign
+`visibility` high importance and `weather` low importance, or vice versa,
+almost arbitrarily — it can't tell which one is "really" driving risk when
+they're this correlated, it just knows the combination predicts risk well.
+A causal model asks a different, harder question: if you could hold
+visibility fixed and only change whether it's raining, would risk actually
+change? Feature importance was never designed to answer that.
+
+**Why this matters for the thesis specifically:** the whole point of the
+original proposal was contrasting causal-style reasoning against
+correlation-based ML (see "Why a hand-built model still counts as
+causal-style" above, and the Related Works summary in
+[`01-dataset-and-related-work.md`](01-dataset-and-related-work.md)). If the
+final report presents feature importance *as if* it were causal weights,
+it undermines that exact argument — it's making the same move the thesis
+critiques other systems for making. The fix isn't to avoid using a
+classifier — it's to be precise in the writing: feature importance is
+presented as "what a data-driven correlational model found useful," and the
+separate hand-built causal DAG (Phase 5) is what carries any actual causal
+claim. Keeping those two claims visibly separate, rather than blending
+them, is what keeps the thesis's original argument intact even with a real
+classifier now in the system.
+
 ## Why "interpretable" is the actual selling point
 
 A lot of accident-detection research chases the highest possible accuracy,
@@ -69,4 +111,7 @@ demonstrated, more than the specific formula used.
   the VRU-Accident dataset actually contains, and how this thesis compares
   to other accident-analysis research.
 - [`../approach/00-approach-overview.md`](../approach/00-approach-overview.md)
-  — how these concepts turned into actual code.
+  — how these concepts turned into actual code (v1) and planned code (new
+  direction).
+- [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md) — the
+  current 7-phase plan and status.
