@@ -11,13 +11,15 @@ actually done, since each one's output is the next one's input.
 | — | Planning: architecture defined, dataset located, docs written | ✅ Done (2026-07-20) |
 | 1 | Visual feature extraction | ✅ Done (2026-07-20, expanded 2026-07-23) — 303/303 videos processed, 0 failures, 11 variables |
 | 2 | Structured storage (`scene_dataset.csv` + `variable_metadata.csv`) | ✅ Done (2026-07-23) — `risk_label` mined from dense captions, `variable_metadata.csv` created |
-| 3 | Train a classifier | ⬜ Not started — Phase 2 output ready; supervisor confirmation in progress, not blocking |
-| 4 | Risk prediction | ⬜ Not started — depends on Phase 3 |
+| 3 | Train a classifier | ✅ Done (2026-07-23) — trained, but honest eval shows no clear signal beyond baseline once leakage is isolated (39.1% text-only vs. 41.6% baseline) — see Phase 3 |
+| 4 | Risk prediction | 🟨 Model saved (`classifier.joblib`) but not yet wired into a `predict(scene)` interface — and per Phase 3's result, needs a decision on the training-label problem before this is worth building on |
 | 5 | Causal DAG | ⬜ Not started — structure specified below, not yet built as code/data |
 | 6 | Interactive simulator | ⬜ Not started — depends on Phase 4 |
 | 7 | Recommendation engine | ⬜ Not started — depends on Phases 2, 4, 5 |
 
-**Overall status:** Phases 1–2 done, Phases 3–7 not started. v1 (the
+**Overall status:** Phases 1–3 done (Phase 3's honest result needs a
+decision before Phase 4 is worth building on — see Phase 3), Phases 4–7
+not started. v1 (the
 hand-built weighted formula, `risk_model.py`/`prototype.py`) lives in its
 own `v1_legacy/` folder, separate from the v2 pipeline at the repo root —
 see [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md).
@@ -253,16 +255,18 @@ cv_fallback** — consistent with the original survey's ~62%/38% split.
 Final distribution: 126 low / 101 medium / 76 high (see the tertile-split
 unevenness note under Phase 1 for why it's not closer to 101/101/101).
 
-**Known limitation, stated plainly rather than hidden:** for the 101
-`cv_fallback` rows, `risk_label` is partly derived from the same
-`vehicle_speed` feature that also goes into Phase 3 as a model input — a
-mild leakage risk for that subset (the classifier could partly learn
-"vehicle_speed predicts risk_label" close to by construction, for those
-rows specifically). `risk_label_source` is kept as a visible column
-specifically so this can be accounted for later (e.g. evaluating the
-classifier on `text`-sourced rows only, as a cleaner check). This should be
-named explicitly in the final report as a first-pass heuristic, not
-presented as validated ground truth.
+**Known limitation, stated plainly rather than hidden — updated after Phase
+3 measured it directly (see below): this is not a "mild" risk, it's
+substantial.** For the 101 `cv_fallback` rows, `risk_label` is partly
+derived from the same `vehicle_speed` feature that also goes into Phase 3
+as a model input. Phase 3's evaluation measured the actual size of this
+effect rather than just flagging it as a possibility: classifier accuracy
+on `cv_fallback`-only rows is 84%, on `text`-only rows is 39% (below the
+41.6% majority-class baseline). `risk_label_source` is kept as a visible
+column specifically so this could be measured. This should be named
+explicitly and prominently in the final report as a first-pass heuristic,
+not presented as validated ground truth — see Phase 3 for the full
+implication.
 
 Real bug caught during validation: the initial speed-extraction regex
 didn't handle decimal-formatted captions ("approximately 40.0 km/h",
@@ -275,24 +279,100 @@ before trusting the output.
 **Goal:** learn accident-risk from the Phase 1/2 data, instead of hand-
 picking weights.
 
-**Status:** not started. Phase 1/2 output is ready; supervisor confirmation
-is in progress (not treated as blocking — see the note above).
+**Status: done, and it surfaced an important honest result (2026-07-23).**
+`train_classifier.py` trains a `RandomForestClassifier` (500 trees,
+`min_samples_leaf=3`, `class_weight="balanced"`) on the 11 scene variables
+via a `ColumnTransformer` + `OneHotEncoder(min_frequency=5)` pipeline,
+evaluated with pooled 5-fold `cross_val_predict` (one out-of-fold
+prediction per row, not an average of 5 small reports), plus a
+`RepeatedStratifiedKFold` stability check. Full details/reasoning in the
+module docstring and code comments.
 
-**Model:** Random Forest or Gradient Boosting (XGBoost/LightGBM) — good
-choices here specifically because both expose feature importances directly,
-train fast on small-to-medium tabular data, and don't need GPU.
+**The headline result — read this before citing an accuracy number
+anywhere:**
 
-**Training target:** `risk_label` (low/medium/high), built in Phase 2 above
-from dense-caption mining — see there for the method and its documented
-leakage caveat for `cv_fallback` rows.
+| Evaluation slice | Accuracy | Rows |
+|---|---|---|
+| Baseline (majority-class guess) | 41.6% | 303 |
+| ALL (everything pooled) | 54.1% | 303 |
+| `cv_fallback`-only | **84.2%** | 101 |
+| `text`-only | **39.1%** | 202 |
 
-**Scale for the first pass:** the 303 videos already processed (not the
-full 1,000) — with 11 candidate features, ~27 samples per feature, a
-healthier ratio than the original 103-video/8-feature pass. Scale up
-further once the full Phase 1→4 pipeline runs cleanly end to end.
+Repeated-CV stability: 53.6% ± 6.5% (5-fold × 5 repeats) — the pooled "ALL"
+number is stable, not a shuffle artifact.
 
-**Output:** a trained, saved model, plus a feature-importance table/chart
-(this replaces `DEFAULT_WEIGHTS` from v1's `v1_legacy/risk_model.py`).
+**What this means, stated plainly:** the 84.2% `cv_fallback` accuracy is
+close to circular — for those 101 rows, `risk_label`'s severity score was
+literally built from the same `vehicle_speed` bucket that's also a model
+input (Phase 2's documented leakage caveat), so the classifier doing well
+there mostly confirms the label-construction mechanism, not genuine
+learning. The **39.1% `text`-only accuracy is the honest number** — labels
+built from real caption text, evaluated on a model that never saw those
+labels during that fold's training — and it's *below* the 41.6% baseline.
+**On the current evidence, this classifier has not demonstrated
+generalizable predictive power beyond guessing the majority class**, once
+the construction-leakage effect is isolated. The "ALL" 54.1% figure, if
+quoted without the `text`-only breakdown next to it, would overstate what
+was actually learned — this needs to be reported with the full table
+above, not just the flattering headline number.
+
+**Validated before trusting this conclusion**, not just computed once and
+accepted: 5-fold-stable top feature ranking (`vehicle_speed`,
+`traffic_density`, `closing_risk` dominate every fold — consistent with
+the leakage story, not a contradiction of it), a manual spot-check of
+correct/incorrect `text`-only predictions (`outputs/classifier/cv_predictions.csv`
+cross-referenced against `data/scene_dataset.csv` — errors look like
+genuine model uncertainty, not corrupted data or a pipeline bug), and the
+known-noisy features (`obstacle`, `location`) correctly rank near the
+bottom of importance rather than suspiciously high.
+
+**Feature importance (final model, fit on all 303 rows, sums to 1.0):**
+
+| Variable | Importance |
+|---|---|
+| `vehicle_speed` | 0.190 |
+| `traffic_density` | 0.187 |
+| `closing_risk` | 0.106 |
+| `num_pedestrians` | 0.093 |
+| `pedestrian_distance` | 0.088 |
+| `weather` | 0.075 |
+| `visibility` | 0.066 |
+| `road_type` | 0.065 |
+| `braking` | 0.064 |
+| `obstacle` | 0.042 |
+| `location` | 0.023 |
+
+`vehicle_speed` and `closing_risk` ranking highest is expected given how
+`risk_label` was built (67% of labels from explicit caption speed, the
+other 33% from `vehicle_speed` itself) — this table is at least as much a
+reflection of the label-construction mechanism as of genuine risk factors,
+which is exactly why it shouldn't be presented as "the model discovered
+these variables matter" without the caveat above attached.
+
+**What this is genuinely useful for, despite the result:** the thesis's
+own argument is that trained classifiers can look like they're learning
+something (a headline accuracy, a feature-importance ranking) while
+actually reflecting artifacts of how the data was built — this result *is*
+a real demonstration of exactly that risk, caught by the same
+leakage-aware evaluation methodology this project has used throughout
+rather than glossed over. That's a legitimate, honest finding for the
+report, not a failed phase.
+
+**Recommended next steps** (not yet implemented, pending direction):
+1. A cleaner training target — e.g. restricting training to `text`-only
+   rows entirely (202 rows, smaller but leakage-free), or a genuinely
+   independent severity signal not derived from any input feature.
+2. More `text`-sourced videos specifically (not just more videos overall —
+   sampling more from sources/videos where captions state an explicit
+   speed) to grow the leakage-free subset.
+3. Treat this as the causal-DAG argument in miniature: this is precisely
+   why Phase 5's hand-built DAG needs to stay analytically separate from
+   this classifier's output, not deferred to it.
+
+**Output (already produced):** `outputs/classifier/classifier.joblib` (the
+final fitted pipeline, ready for Phase 4), `feature_importance.csv`,
+`cv_predictions.csv`, `evaluation_report.txt` (full classification reports
+and confusion matrices for all four slices above).
 
 ## Phase 4 — Risk prediction
 

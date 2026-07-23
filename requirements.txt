@@ -3,3 +3,5 @@ matplotlib
 opencv-python-headless
 ultralytics
 torch
+scikit-learn
+joblib

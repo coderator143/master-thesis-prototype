@@ -1,0 +1,80 @@
+BASELINE: DummyClassifier(most_frequent)
+----------------------------------------
+              precision    recall  f1-score   support
+
+        high      0.000     0.000     0.000       101
+         low      0.416     1.000     0.587       126
+      medium      0.000     0.000     0.000        76
+
+    accuracy                          0.416       303
+   macro avg      0.139     0.333     0.196       303
+weighted avg      0.173     0.416     0.244       303
+
+Confusion matrix (rows=true, cols=predicted), labels sorted:
+            high       low    medium
+    high         0       101         0
+     low         0       126         0
+  medium         0        76         0
+
+Repeated CV accuracy (5-fold x 5 repeats): mean=0.536, std=0.065
+
+ALL (303 rows)
+--------------
+              precision    recall  f1-score   support
+
+        high      0.505     0.515     0.510       101
+         low      0.627     0.587     0.607       126
+      medium      0.463     0.500     0.481        76
+
+    accuracy                          0.541       303
+   macro avg      0.532     0.534     0.532       303
+weighted avg      0.545     0.541     0.543       303
+
+Confusion matrix (rows=true, cols=predicted), labels sorted:
+            high       low    medium
+    high        52        28        21
+     low        29        74        23
+  medium        22        16        38
+
+TEXT-ONLY (202 rows)
+--------------------
+              precision    recall  f1-score   support
+
+        high      0.342     0.368     0.355        68
+         low      0.519     0.471     0.494        87
+      medium      0.260     0.277     0.268        47
+
+    accuracy                          0.391       202
+   macro avg      0.374     0.372     0.372       202
+weighted avg      0.399     0.391     0.394       202
+
+Confusion matrix (rows=true, cols=predicted), labels sorted:
+            high       low    medium
+    high        25        26        17
+     low        26        41        20
+  medium        22        12        13
+
+CV_FALLBACK-ONLY (101 rows, sanity companion)
+---------------------------------------------
+              precision    recall  f1-score   support
+
+        high      0.900     0.818     0.857        33
+         low      0.846     0.846     0.846        39
+      medium      0.781     0.862     0.820        29
+
+    accuracy                          0.842       101
+   macro avg      0.842     0.842     0.841       101
+weighted avg      0.845     0.842     0.842       101
+
+Confusion matrix (rows=true, cols=predicted), labels sorted:
+            high       low    medium
+    high        27         2         4
+     low         3        33         3
+  medium         0         4        25
+
+Top-4 features by fold (stability check):
+  fold 1: ['vehicle_speed', 'traffic_density', 'closing_risk', 'num_pedestrians']
+  fold 2: ['vehicle_speed', 'traffic_density', 'closing_risk', 'num_pedestrians']
+  fold 3: ['vehicle_speed', 'traffic_density', 'closing_risk', 'pedestrian_distance']
+  fold 4: ['vehicle_speed', 'traffic_density', 'closing_risk', 'pedestrian_distance']
+  fold 5: ['vehicle_speed', 'traffic_density', 'closing_risk', 'num_pedestrians']
