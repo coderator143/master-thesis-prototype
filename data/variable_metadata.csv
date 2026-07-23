@@ -1,0 +1,9 @@
+variable,controllable
+vehicle_speed,yes
+pedestrian_distance,partially
+visibility,partially
+traffic_density,no
+weather,no
+road_type,no
+obstacle,no
+num_pedestrians,no

@@ -10,28 +10,33 @@ actually done, since each one's output is the next one's input.
 |---|---|---|
 | — | Planning: architecture defined, dataset located, docs written | ✅ Done (2026-07-20) |
 | 1 | Visual feature extraction | ✅ Done (2026-07-20) — 103/103 videos processed, 0 failures |
-| 2 | Structured storage (`scene_dataset.csv` + `variable_metadata.csv`) | 🟨 `scene_dataset.csv` exists (Phase 1's output); `variable_metadata.csv` not started |
-| 3 | Train a classifier | ⬜ Not started — blocked on Phase 1/2 output + supervisor confirmation |
+| 2 | Structured storage (`scene_dataset.csv` + `variable_metadata.csv`) | ✅ Done (2026-07-23) — `risk_label` mined from dense captions, `variable_metadata.csv` created |
+| 3 | Train a classifier | ⬜ Not started — Phase 2 output ready; supervisor confirmation in progress, not blocking |
 | 4 | Risk prediction | ⬜ Not started — depends on Phase 3 |
 | 5 | Causal DAG | ⬜ Not started — structure specified below, not yet built as code/data |
 | 6 | Interactive simulator | ⬜ Not started — depends on Phase 4 |
 | 7 | Recommendation engine | ⬜ Not started — depends on Phases 2, 4, 5 |
 
-**Overall status:** Phase 1 done, Phases 2–7 not started. v1 (the
+**Overall status:** Phases 1–2 done, Phases 3–7 not started. v1 (the
 hand-built weighted formula, `risk_model.py`/`prototype.py`) lives in its
 own `v1_legacy/` folder, separate from the v2 pipeline at the repo root —
 see [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md).
 It doesn't get deleted; it's the baseline this new direction supersedes.
 
-**Blocking item: supervisor confirmation.** This plan trains a real ML
-classifier, which the already-submitted Step-1 draft explicitly said this
-project would *not* do. That's a legitimate direction, but it's enough of a
-departure from what was already accepted that it should be confirmed with
-Jakob Suchan before too much implementation effort goes in. Not a hard
-blocker for early phases (feature extraction and data storage are useful
-regardless of what model consumes them later), but Phase 3 onward should
-wait for that conversation, or be built with the understanding it might
-need to be reframed.
+**Supervisor confirmation: in progress, not treated as blocking.** This
+plan trains a real ML classifier, which the already-submitted Step-1 draft
+explicitly said this project would *not* do — a legitimate direction, but
+enough of a departure from what was already accepted that it needed
+Jakob Suchan's sign-off. Status: the user is sending a confirmation email
+today (2026-07-23) and has explicitly directed that implementation proceed
+on the full v2 plan now, rather than waiting for a reply. Recorded here for
+traceability, in case the final report needs to explain the timeline: Phase
+3 onward was built before formal written confirmation was received, on the
+user's instruction, with the confirmation request already in flight. If the
+supervisor comes back with different guidance, the phases below (Phase 5's
+DAG especially, since it's independent of the classifier) are still valid
+work either way — only Phase 3's specific framing (a trained classifier as
+the KPI source) would need to be revisited.
 
 ---
 
@@ -138,26 +143,16 @@ weather-based proxy would work too.
 **Goal:** get every video's variables into one dataset, cleanly separated
 from static metadata that doesn't vary per video.
 
-**Status:** not started (schema designed below, not yet implemented).
+**Status: done (2026-07-23).**
 
-**`data/scene_dataset.csv`** (new file, already exists as Phase 1's output —
-v1's `v1_legacy/data/scene_variables.csv` stays as-is, it's v1's own input,
-unrelated to this):
+**`data/scene_dataset.csv`** — Phase 1's output (`video_id, source, split,
+vehicle_speed, pedestrian_distance, num_pedestrians, weather, visibility,
+traffic_density, road_type, obstacle`), now with three more columns added
+by `mine_risk_labels.py`: `risk_score_raw`, `risk_label_source`, and
+`risk_label` (the Phase 3 training target — see below for how it's built).
+v1's `v1_legacy/data/scene_variables.csv` stays as-is, unrelated to this.
 
-```
-video_id, source, split, vehicle_speed, pedestrian_distance, num_pedestrians,
-weather, visibility, traffic_density, road_type, obstacle, risk_label
-```
-
-- `source` — which of the 4 dataset subsets it came from (CAP_DATA,
-  DADA_2000, DoTA, MANUAL_DATA) — worth keeping for traceability.
-- `split` — `train` or `test`, same convention as `videos/train/` and
-  `videos/test/`.
-- `risk_label` — the Phase 3 training target. See Phase 3 for how this
-  gets built, since it isn't a directly-provided field.
-
-**`data/variable_metadata.csv`** (static, one row per variable, not per
-video):
+**`data/variable_metadata.csv`** — created, static, one row per variable:
 
 ```
 variable,controllable
@@ -174,38 +169,57 @@ num_pedestrians,no
 This directly feeds Phase 7's recommendation engine — it only searches over
 rows marked `yes`/`partially`.
 
+**How `risk_label` actually got built** (`mine_risk_labels.py`): rather than
+guessing keyword lists, all 103 real dense captions were surveyed first.
+Findings: 64/103 (62%) captions state an explicit impact speed ("...traveling
+at approximately 40 km/h...", range 0–70 km/h) — a real, objective severity
+signal, used as the primary basis for `risk_score_raw` when present. For the
+other 39/103 (`risk_label_source = "cv_fallback"`), the score falls back to
+Phase 1's CV-derived `vehicle_speed` bucket (low/medium/high → 0.2/0.5/0.9,
+same convention as v1's `SPEED_SCORE`). The score is then adjusted ±0.15 for
+sparse but real outcome language surveyed in the captions ("no apparent
+evasive action" appears in 16/103; "remains motionless"/"serious"/"critical"
+in 14/103 combined; "gets up"/"walks away" in 5/103), and tertile-bucketed
+into `risk_label` (low/medium/high) the same way Phase 1 buckets its other
+relative proxies.
+
+**Known limitation, stated plainly rather than hidden:** for the 39
+`cv_fallback` rows, `risk_label` is partly derived from the same
+`vehicle_speed` feature that also goes into Phase 3 as a model input — a
+mild leakage risk for that subset (the classifier could partly learn
+"vehicle_speed predicts risk_label" close to by construction, for those
+rows specifically). `risk_label_source` is kept as a visible column
+specifically so this can be accounted for later (e.g. evaluating the
+classifier on `text`-sourced rows only, as a cleaner check). This should be
+named explicitly in the final report as a first-pass heuristic, not
+presented as validated ground truth.
+
+Real bug caught during validation: the initial speed-extraction regex
+didn't handle decimal-formatted captions ("approximately 40.0 km/h",
+used by some MANUAL_DATA entries) and silently matched just the ".0"
+fragment as speed = 0 for 7 videos dataset-wide. Fixed and re-verified
+before trusting the output.
+
 ## Phase 3 — Train a classifier
 
 **Goal:** learn accident-risk from the Phase 1/2 data, instead of hand-
 picking weights.
 
-**Status:** not started. Blocked on Phase 1/2 output existing, and on the
-training-label question below being settled with real data (not just in
-principle).
+**Status:** not started. Phase 1/2 output is ready; supervisor confirmation
+is in progress (not treated as blocking — see the note above).
 
 **Model:** Random Forest or Gradient Boosting (XGBoost/LightGBM) — good
 choices here specifically because both expose feature importances directly,
 train fast on small-to-medium tabular data, and don't need GPU.
 
-**The training-label problem, and the resolution:** VRU-Accident videos are
-all real accidents — there's no built-in numeric/categorical "risk" field
-to train against. The decision made for this project: **derive a severity
-proxy from each video's dense caption text**, rather than hand-assigning a
-risk label per video (which would just reintroduce the same subjectivity
-the old manual formula had, one level removed). Concretely: a first pass
-can be a keyword/phrase heuristic over the caption (e.g. words like
-"thrown", "critical", "fatal" → high severity; "swerved in time", "minor
-contact", "no injury" → low severity), producing the `risk_label` column in
-Phase 2's dataset. This should be treated as a v1 heuristic, explicitly
-named as such in the report — it's a legitimate way to bootstrap a target
-without per-video manual labeling, but it's not ground truth either, and
-that limitation is worth stating outright rather than presenting the
-resulting classifier as more validated than it is.
+**Training target:** `risk_label` (low/medium/high), built in Phase 2 above
+from dense-caption mining — see there for the method and its documented
+leakage caveat for `cv_fallback` rows.
 
-**Scale for the first pass:** ~50–100 videos (not the full 1,000) — enough
-for a Random Forest to find real signal, small enough to iterate quickly
-while Phase 1's extraction pipeline is still being debugged. Scale up once
-the full Phase 1→4 pipeline runs cleanly end to end.
+**Scale for the first pass:** the 103 videos already processed (not the
+full 1,000) — enough for a Random Forest to find real signal, small enough
+to iterate quickly. Scale up once the full Phase 1→4 pipeline runs cleanly
+end to end.
 
 **Output:** a trained, saved model, plus a feature-importance table/chart
 (this replaces `DEFAULT_WEIGHTS` from v1's `v1_legacy/risk_model.py`).

@@ -82,3 +82,19 @@ def get_ground_truth(source: str, video_id: str) -> dict:
         "weather": weather_options[weather_qa["GT"]],
         "road_type": road_options[road_qa["GT"]],
     }
+
+
+@functools.lru_cache(maxsize=None)
+def _load_dense_captions(source: str) -> dict:
+    """Loads one source's dense-caption JSON once, keyed by video_id. Used
+    by mine_risk_labels.py (Phase 2) to derive a severity proxy -- see
+    docs/01-phases-and-roadmap.md's Phase 3 section for why."""
+    path = VRU_ACCIDENT_ROOT / "MetaData" / source / f"{source}_Dense_Caption.json"
+    with open(path) as f:
+        raw = json.load(f)
+    return {Path(key).stem: value["gt"] for key, value in raw.items()}
+
+
+def get_dense_caption(source: str, video_id: str) -> str:
+    """Returns the free-text dense caption for one video."""
+    return _load_dense_captions(source)[video_id]

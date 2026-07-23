@@ -43,10 +43,14 @@ the repo root.
 - `ground_truth.py`, `extract_features.py` — **v2, Phase 1 (done):** the CV
   extraction pipeline (YOLO detection + tracking, optical flow, brightness
   analysis) and ground-truth JSON loading.
+- `mine_risk_labels.py`, `data/variable_metadata.csv` — **v2, Phase 2
+  (done):** mines the `risk_label` training target from dense captions;
+  the static controllability table for Phase 7.
 - `scripts/sample_train_videos.py` — how the 100 training videos were
   chosen from the full dataset and copied into `videos/train/`.
 - `data/scene_dataset.csv`, `data/scene_dataset_raw.csv` — Phase 1's
-  output: real scene variables for all 103 local videos.
+  output (now with `risk_label` added by Phase 2): real scene variables
+  for all 103 local videos.
 - `data/train_video_manifest.csv` — which videos got sampled into
   `videos/train/`, and from where.
 - `videos/test/<source>/`, `videos/train/<source>/` — the video clips

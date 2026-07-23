@@ -126,6 +126,7 @@ before scaling up.
 |---|---|
 | `v1_legacy/` (`risk_model.py`, `prototype.py`, `data/scene_variables.csv`, `outputs/`) | **v1** — the original hand-built weighted formula, kept in its own folder, separate from v2. Still works, kept as the baseline this thesis started from. See [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md). |
 | `ground_truth.py`, `extract_features.py`, `data/scene_dataset.csv` | **Phase 1 (done)** — the CV extraction pipeline and its output: real scene variables for all 103 local videos. See [`01-phases-and-roadmap.md`](01-phases-and-roadmap.md). |
+| `mine_risk_labels.py`, `data/variable_metadata.csv` | **Phase 2 (done)** — derives the `risk_label` training target from dense captions, and the static controllability table Phase 7 will use. |
 | `scripts/sample_train_videos.py`, `data/train_video_manifest.csv` | How the 100 training videos were chosen from the full dataset and copied in. |
 | `outputs/` | v1's generated result tables and charts, plus `outputs/debug_frames/` (Phase 1 validation screenshots). |
 | `videos/test/<source>/`, `videos/train/<source>/` | The video clips available locally (3 in `test/`, 100 in `train/`). |
