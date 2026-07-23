@@ -1,7 +1,7 @@
 # How the risk model works (v1 — legacy baseline)
 
 > **v1, superseded by the phased plan.** This describes the original
-> hand-built formula (`risk_model.py`), still working, still the baseline
+> hand-built formula (`v1_legacy/risk_model.py`), still working, still the baseline
 > the new direction is compared against. It is *not* where the causal DAG
 > or the trained classifier described in
 > [`../01-phases-and-roadmap.md`](../01-phases-and-roadmap.md) live — see
@@ -117,7 +117,7 @@ new risk = 0.35×0.2 + 0.25×0.5 + 0.25×0.9 + 0.15×0.2
 ```
 
 That comparison — before vs. after, and whether the risk *band* changed —
-is the entire point of the prototype. See `risk_model.py`'s
+is the entire point of the prototype. See `v1_legacy/risk_model.py`'s
 `simulate_intervention()` function for the actual code, and
-`outputs/intervention_results.csv` after running `prototype.py` for real
-numbers on the 3 videos.
+`v1_legacy/outputs/intervention_results.csv` after running
+`v1_legacy/prototype.py` for real numbers on the 3 videos.

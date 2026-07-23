@@ -17,10 +17,10 @@ actually done, since each one's output is the next one's input.
 | 6 | Interactive simulator | ⬜ Not started — depends on Phase 4 |
 | 7 | Recommendation engine | ⬜ Not started — depends on Phases 2, 4, 5 |
 
-**Overall status: planning/documentation stage. No phase's code exists
-yet.** v1 (the hand-built weighted formula in `risk_model.py`/`prototype.py`)
-is a separate, already-working prior iteration — see
-[`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md).
+**Overall status:** Phase 1 done, Phases 2–7 not started. v1 (the
+hand-built weighted formula, `risk_model.py`/`prototype.py`) lives in its
+own `v1_legacy/` folder, separate from the v2 pipeline at the repo root —
+see [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md).
 It doesn't get deleted; it's the baseline this new direction supersedes.
 
 **Blocking item: supervisor confirmation.** This plan trains a real ML
@@ -140,8 +140,9 @@ from static metadata that doesn't vary per video.
 
 **Status:** not started (schema designed below, not yet implemented).
 
-**`data/scene_dataset.csv`** (new file — the v1 `data/scene_variables.csv`
-stays as-is, it's v1's input, not this):
+**`data/scene_dataset.csv`** (new file, already exists as Phase 1's output —
+v1's `v1_legacy/data/scene_variables.csv` stays as-is, it's v1's own input,
+unrelated to this):
 
 ```
 video_id, source, split, vehicle_speed, pedestrian_distance, num_pedestrians,
@@ -207,7 +208,7 @@ while Phase 1's extraction pipeline is still being debugged. Scale up once
 the full Phase 1→4 pipeline runs cleanly end to end.
 
 **Output:** a trained, saved model, plus a feature-importance table/chart
-(this replaces `DEFAULT_WEIGHTS` from v1's `risk_model.py`).
+(this replaces `DEFAULT_WEIGHTS` from v1's `v1_legacy/risk_model.py`).
 
 ## Phase 4 — Risk prediction
 
@@ -302,8 +303,9 @@ and "maintain 8m pedestrian distance," never "make the weather sunny."
 
 ## What happens to v1 if this all lands
 
-v1 (`risk_model.py` + `prototype.py`, the hand-built weighted formula) stays
-in the repo either way — it's a legitimate, already-working baseline, and
+v1 (`v1_legacy/risk_model.py` + `v1_legacy/prototype.py`, the hand-built
+weighted formula) stays in the repo either way — it's a legitimate,
+already-working baseline, and
 "we started with a simple interpretable formula, then moved to a trained
 classifier + separate causal DAG, and compared the two" is a stronger
 thesis narrative than deleting the first attempt. Whether v1 gets an

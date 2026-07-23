@@ -83,12 +83,14 @@ Phase 1 is for. See the roadmap for the specific approach per variable.
 
 ## Our 3 existing videos are already in here with real GT
 
-`VRU_9`, `VRU_10`, and `VRU_14` (in `videos/test/CAP_DATA/`, with
-placeholder guesses in `data/scene_variables.csv`) are `CAP_DATA` entries in
-this dataset, with real GT annotations and real dense captions already
-available. When Phase 1/2 work begins, these three should be re-populated
-from real data rather than kept as hand-guessed placeholders — no reason to
-guess when the answer is sitting right there.
+`VRU_9`, `VRU_10`, and `VRU_14` (in `videos/test/CAP_DATA/`) are `CAP_DATA`
+entries in this dataset, with real GT annotations and real dense captions
+already available. **Phase 1 now uses this real data** — `data/scene_dataset.csv`
+(the v2 output) has real, CV-extracted + ground-truth values for all three.
+The hand-guessed placeholders only remain in `v1_legacy/data/scene_variables.csv`
+(v1's own, separate input file) — v1 isn't being updated to match, since
+it's no longer where active work happens; see
+[`../02-how-to-run-the-v1-prototype.md`](../02-how-to-run-the-v1-prototype.md).
 
 **Important correction, and why the folder layout has a `source`
 subfolder:** video IDs are only unique *within* a source, not across the
@@ -100,7 +102,7 @@ they're actually CAP_DATA, confirmed by matching file sizes byte-for-byte.
 **Always keep `source` alongside `video_id` when identifying a video** —
 `video_id` alone is ambiguous. This is why `videos/test/` and
 `videos/train/` are organized as `{split}/{source}/{video_id}.mp4`, and why
-`data/scene_variables.csv` and the planned `data/scene_dataset.csv` both
+both `v1_legacy/data/scene_variables.csv` and `data/scene_dataset.csv`
 have a `source` column.
 
 ## `Model_Response/` and `Models/` — not ground truth, worth knowing about
