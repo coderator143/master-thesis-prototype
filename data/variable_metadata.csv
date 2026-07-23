@@ -8,5 +8,4 @@ road_type,no
 obstacle,no
 num_pedestrians,no
 location,no
-closing_risk,no
-braking,no
+braking,yes

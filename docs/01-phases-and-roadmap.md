@@ -207,17 +207,31 @@ road_type,no
 obstacle,no
 num_pedestrians,no
 location,no
-closing_risk,no
-braking,no
+braking,yes
 ```
 
-`closing_risk` and `braking` are marked non-controllable for a specific
-reason beyond "can't be changed": `closing_risk` is a derived interaction
-of `vehicle_speed` and `pedestrian_distance`, not an independent variable —
-Phase 7 should intervene on those two directly and let `closing_risk`
-update as a consequence, not try to "set" it. `braking` describes what the
-driver did in that specific clip, not a general policy lever the way speed
-limits are — see the caveat under Phase 1.
+**Corrected after review (2026-07-23):** two changes from the first version
+of this table, both user catches:
+
+- **`braking` is `yes`, not `no`.** Original reasoning was that it
+  describes a specific past clip's driver response rather than a scene
+  precondition, so it seemed odd to list as a lever the same way speed is.
+  But that reasoning missed the actual point of Phase 7: "brake / reduce
+  speed in time" is a completely standard, real, actionable safety
+  recommendation — arguably a more direct one than the scene-average
+  `vehicle_speed`. Corrected.
+- **`closing_risk` is dropped from this table entirely**, not just marked
+  `no`. It's a derived interaction (`pedestrian_distance_raw ×
+  vehicle_speed_raw`), not an independent scene variable — the earlier
+  version's instinct that it wasn't a real intervention target was right,
+  but a derived variable doesn't belong in a table of *independent*
+  variables and their controllability at all. It still stays as a Phase 3
+  input feature in `data/scene_dataset.csv` (harmless there, and may help
+  a small Random Forest capture the speed×proximity interaction a bit more
+  directly), it's just not something Phase 7 reasons about as a
+  controllability question — that question only makes sense for
+  `vehicle_speed` and `pedestrian_distance`, which it's already asked
+  about directly.
 
 This directly feeds Phase 7's recommendation engine — it only searches over
 rows marked `yes`/`partially`.
