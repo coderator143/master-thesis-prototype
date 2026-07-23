@@ -46,15 +46,15 @@ the repo root.
 - `mine_risk_labels.py`, `data/variable_metadata.csv` — **v2, Phase 2
   (done):** mines the `risk_label` training target from dense captions;
   the static controllability table for Phase 7.
-- `scripts/sample_train_videos.py` — how the 100 training videos were
+- `scripts/sample_train_videos.py` — how the 300 training videos were
   chosen from the full dataset and copied into `videos/train/`.
 - `data/scene_dataset.csv`, `data/scene_dataset_raw.csv` — Phase 1's
   output (now with `risk_label` added by Phase 2): real scene variables
-  for all 103 local videos.
+  for all 303 local videos.
 - `data/train_video_manifest.csv` — which videos got sampled into
   `videos/train/`, and from where.
 - `videos/test/<source>/`, `videos/train/<source>/` — the video clips
-  available locally (3 in `test/`, 100 in `train/`).
+  available locally (3 in `test/`, 300 in `train/`).
 - `outputs/debug_frames/` — annotated frames saved while validating Phase
   1's detection/tracking before trusting the full batch run.
 - `docs/` — plain-language explanation of the project, both what's built

@@ -30,7 +30,10 @@ it.* That's the gap this thesis is about.
 Watch real accident videos and use computer vision to pull out concrete
 scene facts (how fast the vehicle was going, how far the pedestrian was,
 how many pedestrians, the weather, how crowded the traffic was, the road
-type, whether there was an obstacle). Store those facts in a table. Train a
+type and location, whether there was an obstacle, whether the driver
+braked, and a combined "closing risk" signal — 11 variables in total, see
+[`01-phases-and-roadmap.md`](01-phases-and-roadmap.md) for the full list).
+Store those facts in a table. Train a
 machine-learning classifier on that table to predict accident risk — this
 is a genuine, trained ML model, not a hand-picked formula, and it's the KPI.
 Separately, hand-draw a causal diagram (a DAG) encoding domain knowledge
@@ -117,19 +120,21 @@ a rich text description per video. See
 full details and how this project will use it — in short: real GT is used
 directly for the variables it already covers, computer vision is only
 needed for the variables it doesn't (speed, pedestrian distance/count,
-traffic density), and the first end-to-end pass targets ~50–100 videos
-before scaling up.
+traffic density). The first end-to-end pass targeted ~50–100 videos; that's
+since been expanded to 303 (see
+[`01-phases-and-roadmap.md`](01-phases-and-roadmap.md)) before scaling up
+further.
 
 ## How the pieces of this repo fit together
 
 | File / folder | What it is |
 |---|---|
 | `v1_legacy/` (`risk_model.py`, `prototype.py`, `data/scene_variables.csv`, `outputs/`) | **v1** — the original hand-built weighted formula, kept in its own folder, separate from v2. Still works, kept as the baseline this thesis started from. See [`02-how-to-run-the-v1-prototype.md`](02-how-to-run-the-v1-prototype.md). |
-| `ground_truth.py`, `extract_features.py`, `data/scene_dataset.csv` | **Phase 1 (done)** — the CV extraction pipeline and its output: real scene variables for all 103 local videos. See [`01-phases-and-roadmap.md`](01-phases-and-roadmap.md). |
+| `ground_truth.py`, `extract_features.py`, `data/scene_dataset.csv` | **Phase 1 (done)** — the CV extraction pipeline and its output: real scene variables for all 303 local videos. See [`01-phases-and-roadmap.md`](01-phases-and-roadmap.md). |
 | `mine_risk_labels.py`, `data/variable_metadata.csv` | **Phase 2 (done)** — derives the `risk_label` training target from dense captions, and the static controllability table Phase 7 will use. |
-| `scripts/sample_train_videos.py`, `data/train_video_manifest.csv` | How the 100 training videos were chosen from the full dataset and copied in. |
+| `scripts/sample_train_videos.py`, `data/train_video_manifest.csv` | How the 300 training videos were chosen from the full dataset and copied in. |
 | `outputs/` | v1's generated result tables and charts, plus `outputs/debug_frames/` (Phase 1 validation screenshots). |
-| `videos/test/<source>/`, `videos/train/<source>/` | The video clips available locally (3 in `test/`, 100 in `train/`). |
+| `videos/test/<source>/`, `videos/train/<source>/` | The video clips available locally (3 in `test/`, 300 in `train/`). |
 | `docs/` | You are here. |
 
 `docs/` has two subfolders:

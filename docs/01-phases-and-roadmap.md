@@ -9,7 +9,7 @@ actually done, since each one's output is the next one's input.
 | # | Phase | Status |
 |---|---|---|
 | — | Planning: architecture defined, dataset located, docs written | ✅ Done (2026-07-20) |
-| 1 | Visual feature extraction | ✅ Done (2026-07-20) — 103/103 videos processed, 0 failures |
+| 1 | Visual feature extraction | ✅ Done (2026-07-20, expanded 2026-07-23) — 303/303 videos processed, 0 failures, 11 variables |
 | 2 | Structured storage (`scene_dataset.csv` + `variable_metadata.csv`) | ✅ Done (2026-07-23) — `risk_label` mined from dense captions, `variable_metadata.csv` created |
 | 3 | Train a classifier | ⬜ Not started — Phase 2 output ready; supervisor confirmation in progress, not blocking |
 | 4 | Risk prediction | ⬜ Not started — depends on Phase 3 |
@@ -45,68 +45,104 @@ the KPI source) would need to be revisited.
 **Goal:** turn each video into a row of concrete variables, using computer
 vision, not manual guessing.
 
-**Status: done (first pass).** `ground_truth.py` (GT loading/parsing) and
-`extract_features.py` (the CV pipeline — YOLOv8n detection + ByteTrack
-tracking via `ultralytics`, dense optical flow via OpenCV) were built and
-run against all 103 local videos (3 `test/` + 100 `train/`, the latter
-sampled via `scripts/sample_train_videos.py`). **All 103 processed
-successfully, 0 failures**, in well under a minute on this machine (M2,
-MPS backend). Output: `data/scene_dataset_raw.csv` (raw per-video values)
-and `data/scene_dataset.csv` (final bucketed schema, matching the table
-below minus `risk_label`, which is Phase 3's job).
+**Status: done, expanded (2026-07-23).** `ground_truth.py` (GT
+loading/parsing) and `extract_features.py` (the CV pipeline — YOLOv8n
+detection + ByteTrack tracking via `ultralytics`, dense optical flow via
+OpenCV) were built and run against **303 local videos** (3 `test/` + 300
+`train/`, up from an initial 103, expanded before Phase 3 for a healthier
+samples-per-feature ratio once more variables were added — see below).
+**All 303 processed successfully, 0 failures**, in a couple of minutes on
+this machine (M2, MPS backend). Output: `data/scene_dataset_raw.csv` (raw
+per-video values) and `data/scene_dataset.csv` (final bucketed schema, 17
+columns including `risk_label` from Phase 2/3's mining step).
 
-**How each variable actually got computed** (validated against 3 test
-videos + spot-checked debug frames in `outputs/debug_frames/` before the
-full run — boxes land on real people/vehicles, weather GT matches the
-visual scene, brightness ordering tracks reality):
+**11 scene variables** (up from the original 8 — see "Added before Phase 3"
+below), plus the `risk_label` training target:
 
-- `vehicle_speed`, `pedestrian_distance`, `visibility` — tertile-bucketed
-  (low/medium/high or far/medium/close) from uncalibrated CV proxies:
-  background optical-flow magnitude (objects masked out) for speed, max
-  normalized person-box height for distance, brightness+contrast (combined
-  as whichever is worse) for visibility.
+- `vehicle_speed`, `pedestrian_distance`, `closing_risk`, `visibility` —
+  tertile-bucketed (low/medium/high, or far/medium/close for distance) from
+  uncalibrated CV proxies: background optical-flow magnitude (objects
+  masked out) for speed, max normalized person-box height for distance,
+  their product for closing_risk, brightness+contrast (combined as
+  whichever is worse) for visibility.
 - `num_pedestrians`, `traffic_density` — kept as raw numbers (distinct
-  track IDs, mean per-frame vehicle count), not bucketed, per the
-  reasoning in the implementation plan.
-- `weather`, `road_type` — pulled directly from the dataset's real
-  ground-truth annotations (`ground_truth.py`), not derived by CV.
-- `obstacle` — a lightweight near-static-vehicle heuristic (lower
-  priority, as planned).
+  track IDs, mean per-frame vehicle count), not bucketed.
+- `weather`, `road_type`, `location` — pulled directly from the dataset's
+  real ground-truth annotations (`ground_truth.py`), not derived by CV.
+- `obstacle`, `braking` — lightweight heuristics from the same tracking/flow
+  data already computed for the variables above (no extra CV work).
+
+**Added before Phase 3, at the user's request** (see the discussion around
+2026-07-23 — "more variables" was pushed back on as a blanket instinct,
+since more columns without more rows raises overfitting risk at small
+sample sizes, but three specific additions were agreed as genuinely
+low-cost and non-redundant, alongside expanding the video count):
+
+- **`location`** (rural/urban/suburban/...) — was already sitting unused in
+  the same GT JSON `weather`/`road_type` are pulled from; zero new
+  extraction work, just one more field read.
+- **`closing_risk`** — `pedestrian_distance_raw × vehicle_speed_raw`, a
+  proxy interaction combining ego speed and how close the nearest
+  pedestrian got. Not real seconds-to-collision (neither input is
+  calibrated to physical units), but the kind of interaction a Random
+  Forest won't reliably reconstruct on its own from the two variables
+  sitting in separate columns.
+- **`braking`** — whether the optical-flow magnitude (the same series
+  `vehicle_speed` is derived from) trends downward across the clip
+  (second-half mean ≥15% below first-half mean), as a proxy for the ego
+  vehicle decelerating before the collision. **Worth flagging a conceptual
+  difference from the others**: this describes the driver's *response*
+  during the clip, not a fixed pre-existing scene condition the way
+  weather or road type are — closer in kind (though not identical) to the
+  `accident_type`/`accident_reason` fields that were deliberately excluded
+  as circular. Kept because it's an independently observable physical
+  signal (not a retrospective annotator judgment like those fields), but
+  the report should be honest that it sits closer to "response" than
+  "precondition."
 
 **Known limitations found while validating real output** (worth stating
 honestly in the report, not silently smoothing over):
 
-- **`obstacle` over-triggers** — 84/103 videos got `"yes"`, which is too
-  high to be a discriminating signal as currently thresholded. Needs
-  revisiting (e.g. a stricter displacement threshold, or requiring more
-  than 2 detections) before it's trustworthy — treat it as a stub for now,
-  same as originally planned as acceptable for a first pass.
+- **`obstacle` over-triggers** — 253/303 (83%) got `"yes"`, consistent with
+  the same ~81-84% rate seen on the earlier 103-video sample, confirming
+  this is a systematic issue with the threshold, not sampling noise. Needs
+  a stricter displacement threshold (or requiring more detections) before
+  it's a useful discriminating signal — treat it as a stub for now.
 - **`num_pedestrians` can be noisy in crowded scenes** — spot-checked the
-  highest outlier (32, in a real crowded pedestrian-crossing scene,
-  confirmed via debug frame) and found real track-ID churn under the
-  sparse 2fps sampling (the same handful of people getting reassigned new
-  IDs across frames), which likely inflates the count somewhat above the
-  true number. The true value is probably somewhere between the largest
-  single-frame count and the distinct-ID count; this implementation uses
-  the max of the two, which is a documented, not hidden, approximation.
+  highest outlier in the original 103 (32, a real crowded pedestrian
+  crossing, confirmed via debug frame) and found real track-ID churn under
+  sparse 2fps sampling likely inflates the count somewhat above the true
+  number. Documented approximation (max of distinct-ID count and largest
+  single-frame count), not hidden.
 - **`visibility`'s "low" bucket is oversized on purpose, not a bug** — it's
   the `min()` of two independent tertile rankings (brightness, contrast),
-  which mathematically skews toward "low" (worked out to 57/33/13 for
-  low/medium/high across the 103 videos, close to the theoretical 5/9,
-  3/9, 1/9 split for two independent tertiles combined this way) — because
-  a video only needs *either* poor brightness *or* poor contrast to be
-  flagged low-visibility. Working as designed, but worth explaining in the
-  report rather than presenting the class balance as if it were neutral.
-- **Weather/road-type class balance is skewed** in this 103-video sample
-  (76/103 "sunny day", 65/103 "arterials" road type) — a real property of
-  which videos got randomly sampled, worth keeping in mind for Phase 3
-  (a classifier trained on this will see much more "sunny day" than
-  anything else).
+  which mathematically skews toward "low" (147/112/44 for low/medium/high
+  across all 303 videos, close to the theoretical 5/9, 3/9, 1/9 split) —
+  because a video only needs *either* poor brightness *or* poor contrast
+  to be flagged low-visibility.
+- **`location` is heavily imbalanced** — 273/303 (90%) came back "urban",
+  with rural (25), suburban (2), highway (2), and mountain (1) barely
+  represented. A classifier will have essentially no signal to learn about
+  the rare categories; worth treating `location` as close to a binary
+  urban/non-urban signal in practice, and saying so in the report rather
+  than implying it's a balanced 4+-way categorical feature.
+- **Weather/road-type class balance is skewed**, consistent with the
+  earlier 103-video finding — this is a property of which real accidents
+  exist in the dataset, not sampling bias specifically.
+- **`risk_label`'s tertile split isn't perfectly even** (126 low / 101
+  medium / 76 high, not ~101 each) — because `risk_score_raw` clusters at
+  only three discrete base values (0.2/0.5/0.8) for the 101 `cv_fallback`
+  rows before adjustment, which prevents a clean three-way quantile split
+  when there are many tied values. Not a bug, but worth knowing when
+  interpreting Phase 3's training-label balance.
 
-100 training videos (25 each from CAP_DATA, DADA_2000, DoTA, MANUAL_DATA,
-chosen with a fixed random seed, excluding the 3 already in `test/`) were
-copied into `videos/train/<source>/` via `scripts/sample_train_videos.py`,
-with a manifest at `data/train_video_manifest.csv`.
+300 training videos (75 each from CAP_DATA, DADA_2000, DoTA, MANUAL_DATA —
+up from 25 each — chosen with a fixed random seed, excluding the 3 already
+in `test/`) were copied into `videos/train/<source>/` via
+`scripts/sample_train_videos.py`, which is incremental/idempotent (re-run
+after raising the per-source target and it only tops up what's missing,
+never re-copies or invalidates already-processed videos). Manifest at
+`data/train_video_manifest.csv`.
 
 **What's already available and doesn't need building:** the real dataset
 (see [`approach/03-dataset-source.md`](approach/03-dataset-source.md)) has
@@ -133,6 +169,10 @@ direct brightness/contrast measurement from the frames is cheap and doesn't
 need a model — worth computing as a supplementary signal even though a
 weather-based proxy would work too.
 
+(This table is the original plan, 8 variables. `location`, `closing_risk`,
+and `braking` were added afterward, before Phase 3 — see "Added before
+Phase 3" above for what they are and why.)
+
 **Output:** for each processed video, one row of: `vehicle_speed`,
 `pedestrian_distance`, `num_pedestrians`, `weather` (from GT),
 `visibility` (from GT + brightness check), `traffic_density`, `road_type`
@@ -147,10 +187,12 @@ from static metadata that doesn't vary per video.
 
 **`data/scene_dataset.csv`** — Phase 1's output (`video_id, source, split,
 vehicle_speed, pedestrian_distance, num_pedestrians, weather, visibility,
-traffic_density, road_type, obstacle`), now with three more columns added
-by `mine_risk_labels.py`: `risk_score_raw`, `risk_label_source`, and
-`risk_label` (the Phase 3 training target — see below for how it's built).
-v1's `v1_legacy/data/scene_variables.csv` stays as-is, unrelated to this.
+traffic_density, road_type, obstacle`, later expanded to 11 variables —
+`closing_risk`, `location`, `braking` added before Phase 3, see Phase 1),
+now with three more columns added by `mine_risk_labels.py`:
+`risk_score_raw`, `risk_label_source`, and `risk_label` (the Phase 3
+training target — see below for how it's built). v1's
+`v1_legacy/data/scene_variables.csv` stays as-is, unrelated to this.
 
 **`data/variable_metadata.csv`** — created, static, one row per variable:
 
@@ -164,26 +206,40 @@ weather,no
 road_type,no
 obstacle,no
 num_pedestrians,no
+location,no
+closing_risk,no
+braking,no
 ```
+
+`closing_risk` and `braking` are marked non-controllable for a specific
+reason beyond "can't be changed": `closing_risk` is a derived interaction
+of `vehicle_speed` and `pedestrian_distance`, not an independent variable —
+Phase 7 should intervene on those two directly and let `closing_risk`
+update as a consequence, not try to "set" it. `braking` describes what the
+driver did in that specific clip, not a general policy lever the way speed
+limits are — see the caveat under Phase 1.
 
 This directly feeds Phase 7's recommendation engine — it only searches over
 rows marked `yes`/`partially`.
 
 **How `risk_label` actually got built** (`mine_risk_labels.py`): rather than
-guessing keyword lists, all 103 real dense captions were surveyed first.
-Findings: 64/103 (62%) captions state an explicit impact speed ("...traveling
-at approximately 40 km/h...", range 0–70 km/h) — a real, objective severity
-signal, used as the primary basis for `risk_score_raw` when present. For the
-other 39/103 (`risk_label_source = "cv_fallback"`), the score falls back to
-Phase 1's CV-derived `vehicle_speed` bucket (low/medium/high → 0.2/0.5/0.9,
-same convention as v1's `SPEED_SCORE`). The score is then adjusted ±0.15 for
-sparse but real outcome language surveyed in the captions ("no apparent
-evasive action" appears in 16/103; "remains motionless"/"serious"/"critical"
-in 14/103 combined; "gets up"/"walks away" in 5/103), and tertile-bucketed
-into `risk_label` (low/medium/high) the same way Phase 1 buckets its other
-relative proxies.
+guessing keyword lists, the initial 103 real dense captions were surveyed
+first. Findings: ~62% of captions state an explicit impact speed
+("...traveling at approximately 40 km/h...", range 0–70 km/h) — a real,
+objective severity signal, used as the primary basis for `risk_score_raw`
+when present. For the rest (`risk_label_source = "cv_fallback"`), the score
+falls back to Phase 1's CV-derived `vehicle_speed` bucket (low/medium/high
+→ 0.2/0.5/0.9, same convention as v1's `SPEED_SCORE`). The score is then
+adjusted ±0.15 for sparse but real outcome language found in the survey
+("no apparent evasive action", "remains motionless"/"serious"/"critical",
+"gets up"/"walks away"), and tertile-bucketed into `risk_label`
+(low/medium/high). Re-run as-is (same method, no changes) after the video
+count expanded to 303: **202/303 (67%) text-sourced, 101/303
+cv_fallback** — consistent with the original survey's ~62%/38% split.
+Final distribution: 126 low / 101 medium / 76 high (see the tertile-split
+unevenness note under Phase 1 for why it's not closer to 101/101/101).
 
-**Known limitation, stated plainly rather than hidden:** for the 39
+**Known limitation, stated plainly rather than hidden:** for the 101
 `cv_fallback` rows, `risk_label` is partly derived from the same
 `vehicle_speed` feature that also goes into Phase 3 as a model input — a
 mild leakage risk for that subset (the classifier could partly learn
@@ -216,10 +272,10 @@ train fast on small-to-medium tabular data, and don't need GPU.
 from dense-caption mining — see there for the method and its documented
 leakage caveat for `cv_fallback` rows.
 
-**Scale for the first pass:** the 103 videos already processed (not the
-full 1,000) — enough for a Random Forest to find real signal, small enough
-to iterate quickly. Scale up once the full Phase 1→4 pipeline runs cleanly
-end to end.
+**Scale for the first pass:** the 303 videos already processed (not the
+full 1,000) — with 11 candidate features, ~27 samples per feature, a
+healthier ratio than the original 103-video/8-feature pass. Scale up
+further once the full Phase 1→4 pipeline runs cleanly end to end.
 
 **Output:** a trained, saved model, plus a feature-importance table/chart
 (this replaces `DEFAULT_WEIGHTS` from v1's `v1_legacy/risk_model.py`).

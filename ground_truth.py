@@ -61,8 +61,9 @@ def _load_annotations(source: str) -> dict:
 
 
 def get_ground_truth(source: str, video_id: str) -> dict:
-    """Returns {"weather": <text>, "road_type": <text>} for one video,
-    resolved from the dataset's own ground-truth annotations.
+    """Returns {"weather": <text>, "road_type": <text>, "location": <text>}
+    for one video, resolved from the dataset's own ground-truth
+    annotations.
 
     Raises KeyError if (source, video_id) isn't found, or ValueError if the
     options string for this entry can't be parsed -- both are expected to
@@ -74,13 +75,16 @@ def get_ground_truth(source: str, video_id: str) -> dict:
 
     weather_qa = entry["weather and light"]
     road_qa = entry["road type"]
+    location_qa = entry["location"]
 
     weather_options = _parse_options(weather_qa["options"])
     road_options = _parse_options(road_qa["options"])
+    location_options = _parse_options(location_qa["options"])
 
     return {
         "weather": weather_options[weather_qa["GT"]],
         "road_type": road_options[road_qa["GT"]],
+        "location": location_options[location_qa["GT"]],
     }
 
 

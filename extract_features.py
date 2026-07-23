@@ -47,12 +47,19 @@ OBSTACLE_DISPLACEMENT_THRESHOLD = 0.03  # fraction of frame diagonal
 
 DEVICE = "mps" if torch.backends.mps.is_available() else "cpu"
 
+BRAKING_MIN_FLOW_PAIRS = 4  # need this many consecutive-frame flow readings
+                            # before a first-half-vs-second-half trend is
+                            # meaningful; short clips get "unknown" instead
+BRAKING_RELATIVE_DROP = 0.15  # >=15% relative decrease in flow magnitude,
+                               # second half of the clip vs. first half
+
 RAW_FIELDNAMES = [
     "video_id", "source", "split", "filename",
-    "vehicle_speed_raw", "pedestrian_distance_raw",
+    "vehicle_speed_raw", "pedestrian_distance_raw", "closing_risk_raw",
     "visibility_brightness_raw", "visibility_contrast_raw",
     "num_pedestrians", "traffic_density",
-    "weather", "road_type", "obstacle", "n_sampled_frames",
+    "weather", "road_type", "location", "obstacle", "braking",
+    "n_sampled_frames",
 ]
 
 
@@ -156,10 +163,25 @@ def process_video(model: YOLO, source: str, video_id: str, split: str, filename:
         background_masks.append(mask)
         n_frames += 1
 
-    vehicle_speed_raw = _compute_vehicle_speed(gray_frames, background_masks)
+    flow_series = _compute_flow_series(gray_frames, background_masks)
+    vehicle_speed_raw = float(np.mean(flow_series)) if flow_series else np.nan
+    braking = _compute_braking(flow_series)
+
     brightness_raw = float(np.mean([g.mean() for g in gray_frames])) if gray_frames else np.nan
     contrast_raw = float(np.mean([g.std() for g in gray_frames])) if gray_frames else np.nan
     pedestrian_distance_raw = max(person_box_heights_norm) if person_box_heights_norm else np.nan
+    # Interaction proxy combining ego speed and how close the nearest
+    # pedestrian got -- the kind of "closing risk" a Random Forest won't
+    # reliably reconstruct on its own from the two variables sitting in
+    # separate columns. Not real seconds-to-collision (neither input is in
+    # calibrated physical units), just a monotonic "how urgent was this"
+    # proxy: higher speed AND higher closeness (=1/distance-ish) -> higher.
+    # NaN when no pedestrian was detected, same as pedestrian_distance_raw.
+    closing_risk_raw = (
+        pedestrian_distance_raw * vehicle_speed_raw
+        if not (np.isnan(pedestrian_distance_raw) or np.isnan(vehicle_speed_raw))
+        else np.nan
+    )
     # Distinct track IDs is the better estimate when tracking succeeds (it
     # counts people who appear serially, not just simultaneously) -- but
     # ByteTrack occasionally returns ids=None for an entire frame under the
@@ -179,22 +201,26 @@ def process_video(model: YOLO, source: str, video_id: str, split: str, filename:
         "filename": filename,
         "vehicle_speed_raw": vehicle_speed_raw,
         "pedestrian_distance_raw": pedestrian_distance_raw,
+        "closing_risk_raw": closing_risk_raw,
         "visibility_brightness_raw": brightness_raw,
         "visibility_contrast_raw": contrast_raw,
         "num_pedestrians": num_pedestrians,
         "traffic_density": traffic_density,
         "weather": gt["weather"],
         "road_type": gt["road_type"],
+        "location": gt["location"],
         "obstacle": obstacle,
+        "braking": braking,
         "n_sampled_frames": n_frames,
     }
 
 
-def _compute_vehicle_speed(gray_frames, background_masks) -> float:
-    """Ego-motion proxy: dense optical flow magnitude over background
-    pixels only (all detected objects excluded), median per frame pair,
-    averaged across the clip. A dashcam's own speed shows up as background
-    motion, not as any single tracked object's motion."""
+def _compute_flow_series(gray_frames, background_masks) -> list:
+    """Dense optical flow magnitude over background pixels only (all
+    detected objects excluded), median per consecutive frame pair, as a
+    time series across the clip. A dashcam's own speed shows up as
+    background motion, not as any single tracked object's motion. Feeds
+    both vehicle_speed_raw (the mean) and braking (the trend)."""
     flow_medians = []
     for i in range(len(gray_frames) - 1):
         flow = cv2.calcOpticalFlowFarneback(
@@ -204,7 +230,25 @@ def _compute_vehicle_speed(gray_frames, background_masks) -> float:
         background = ~background_masks[i]
         if background.sum() > 0:
             flow_medians.append(float(np.median(magnitude[background])))
-    return float(np.mean(flow_medians)) if flow_medians else np.nan
+    return flow_medians
+
+
+def _compute_braking(flow_series) -> str:
+    """Whether the ego-motion flow magnitude trends downward across the
+    clip (second half meaningfully lower than the first half) -- a proxy
+    for the vehicle decelerating before the collision. Note this describes
+    the driver's *response* during the clip, not a fixed pre-existing scene
+    condition like weather -- see docs/01-phases-and-roadmap.md for why
+    that distinction matters when deciding what's "controllable" later."""
+    if len(flow_series) < BRAKING_MIN_FLOW_PAIRS:
+        return "unknown"
+    half = len(flow_series) // 2
+    first_half_mean = float(np.mean(flow_series[:half]))
+    second_half_mean = float(np.mean(flow_series[half:]))
+    if first_half_mean <= 0:
+        return "unknown"
+    relative_change = (second_half_mean - first_half_mean) / first_half_mean
+    return "yes" if relative_change < -BRAKING_RELATIVE_DROP else "no"
 
 
 def _compute_obstacle(vehicle_tracks, frame_diag) -> str:
@@ -260,6 +304,7 @@ def build_scene_dataset(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     df["vehicle_speed"] = bucket_tertile(df["vehicle_speed_raw"], ("low", "medium", "high"))
     df["pedestrian_distance"] = bucket_tertile(df["pedestrian_distance_raw"], ("far", "medium", "close"))
+    df["closing_risk"] = bucket_tertile(df["closing_risk_raw"], ("low", "medium", "high"))
 
     brightness_idx = _tertile_index(df["visibility_brightness_raw"])
     contrast_idx = _tertile_index(df["visibility_contrast_raw"])
@@ -271,8 +316,9 @@ def build_scene_dataset(raw_df: pd.DataFrame) -> pd.DataFrame:
 
     return df[[
         "video_id", "source", "split",
-        "vehicle_speed", "pedestrian_distance", "num_pedestrians",
-        "weather", "visibility", "traffic_density", "road_type", "obstacle",
+        "vehicle_speed", "pedestrian_distance", "closing_risk", "num_pedestrians",
+        "weather", "visibility", "traffic_density", "road_type", "location",
+        "obstacle", "braking",
     ]]
 
 
